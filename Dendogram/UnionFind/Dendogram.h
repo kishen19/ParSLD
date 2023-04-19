@@ -49,8 +49,7 @@ void Dendogram(Graph& GA){
 		while (1) {
 			auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
 			auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
-			if (heaps[u]->is_empty()){ break;}
-			if (heaps[v]->is_empty()){ break;}
+			if (u == v){ break;}
 			auto min_elem_u = std::get<1>(heaps[u]->find_min());
 			auto min_elem_v = std::get<1>(heaps[v]->find_min());
 			if (min_elem_u == ind && min_elem_v == ind){
