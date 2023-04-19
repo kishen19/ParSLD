@@ -21,3 +21,5 @@ __pycache__
 # Leftover files from switching from website branch to code branch
 .docusaurus/
 node_modules/
+
+.vscode
