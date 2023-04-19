@@ -43,16 +43,24 @@ void Dendogram(Graph& GA){
 
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
 	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendogram
+	auto is_ready = sequence<bool>(m,false);
+	parallel_for(0, m, [&](size_t i){
+		auto u = std::get<0>(mst_edges[i]);
+		auto v = std::get<1>(mst_edges[i]);
+		auto min_elem_u = std::get<1>(heaps[u]->find_min());
+		auto min_elem_v = std::get<1>(heaps[v]->find_min());
+		if (min_elem_u == i && min_elem_v == i){
+			is_ready[i] = true;
+		}
+	});
+
 	parallel_for(0, m, [&](size_t i){
 		auto edge = mst_edges[i];
 		auto ind = i;
 		while (1) {
-			auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
-			auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
-			if (u == v){ break;}
-			auto min_elem_u = std::get<1>(heaps[u]->find_min());
-			auto min_elem_v = std::get<1>(heaps[v]->find_min());
-			if (min_elem_u == ind && min_elem_v == ind){
+			if (gbbs::atomic_compare_and_swap(&is_ready[ind], true, false)){
+				auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
+				auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
 				parlay::par_do(
 					[&](){heaps[u]->delete_min();},
 					[&](){heaps[v]->delete_min();}
@@ -71,6 +79,16 @@ void Dendogram(Graph& GA){
 				parents[ind] = temp;
 				ind = temp;
 				edge = mst_edges[ind];
+
+				u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
+				v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
+				auto min_elem_u = std::get<1>(heaps[u]->find_min());
+				auto min_elem_v = std::get<1>(heaps[v]->find_min());
+				if (min_elem_u == ind && min_elem_v == ind){
+					gbbs::atomic_compare_and_swap(&is_ready[ind], false, true);
+				} else{
+					break;
+				}
 			} else{
 				break;
 			}
