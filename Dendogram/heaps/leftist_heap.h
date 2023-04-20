@@ -5,10 +5,10 @@
 namespace gbbs{
 
 namespace leftist_heap{
-template <typename W>
+
+template <typename key_type>
 struct leftist_heap_node{
-    W key;
-    size_t val;
+    key_type key;
     leftist_heap_node* left;
     leftist_heap_node* right;
     size_t rank;
@@ -21,8 +21,8 @@ struct leftist_heap_node{
         }
     }
     
-    leftist_heap_node(W _key, size_t _val, leftist_heap_node* _left = nullptr, leftist_heap_node* _right = nullptr) 
-    : key(_key), val(_val), left(_left), right(_right) {
+    leftist_heap_node(key_type _key, leftist_heap_node* _left = nullptr, leftist_heap_node* _right = nullptr) 
+    : key(_key), left(_left), right(_right) {
         reassign_rank();
     }
     
@@ -35,14 +35,14 @@ struct leftist_heap_node{
     }
 };
 
-template <typename W>
-leftist_heap_node<W>* meld(leftist_heap_node<W>* L, leftist_heap_node<W>* R){
+template <typename key_type>
+leftist_heap_node<key_type>* meld(leftist_heap_node<key_type>* L, leftist_heap_node<key_type>* R){
     if (L == nullptr){
         return R;
     } else if (R == nullptr){
         return L;
     } else{
-        if (L->key < R->key || (L->key == R->key && L->val <= R->val)){
+        if (L->key <= R->key){
             if (L->left == nullptr){
                 L->left = R;
             } else{
@@ -57,12 +57,12 @@ leftist_heap_node<W>* meld(leftist_heap_node<W>* L, leftist_heap_node<W>* R){
     }
 }
 
-template <typename W>
+template <typename key_type>
 struct leftist_heap{
-    leftist_heap_node<W>* root;
+    leftist_heap_node<key_type>* root;
     size_t size;
 
-    leftist_heap(leftist_heap_node<W>* _root = nullptr)
+    leftist_heap(leftist_heap_node<key_type>* _root = nullptr)
       : root(_root){
         if (root){
             size = 1;
@@ -71,13 +71,13 @@ struct leftist_heap{
         }
       }
     
-    std::pair<W, size_t> find_min(){
-        return {root->key, root->val};
+    key_type find_min(){
+        return root->key;
     }
 
     void delete_min(){
         if (root){
-            leftist_heap_node<W>* temp = root;
+            leftist_heap_node<key_type>* temp = root;
             root = meld(root->left, root->right);
             delete temp;
             size--;
@@ -88,13 +88,13 @@ struct leftist_heap{
         return (size==0);
     }
 
-    void insert(size_t val, W key){
-        auto new_node = new leftist_heap_node<W>(key, val);
+    void insert(key_type key){
+        auto new_node = new leftist_heap_node<key_type>(key);
         root = meld(root, new_node);
         size++;
     }
 
-    void merge(leftist_heap<W>* heap){
+    void merge(leftist_heap<key_type>* heap){
         root = meld(root, heap->root);
         size += heap->size;
         heap->root = nullptr;
