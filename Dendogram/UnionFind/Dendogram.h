@@ -45,24 +45,26 @@ void Dendogram(Graph& GA){
 	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendogram
 	auto is_ready = sequence<int>(m,0);
 	parallel_for(0, n, [&](size_t u){
-		auto min_elem = std::get<1>(heaps[u]->find_min());
-		gbbs::write_add(&is_ready[min_elem], 1);
+		if (heaps[u]->size > 0){
+			auto min_elem = heaps[u]->find_min();
+			gbbs::write_add(&is_ready[std::get<1>(min_elem)], 1);
+		}
 	});
-
+	
 	parallel_for(0, m, [&](size_t i){
 		auto edge = mst_edges[i];
 		auto ind = i;
 		while (1) {
 			if (gbbs::atomic_compare_and_swap(&is_ready[ind], 2, 0)){
-				auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
-				auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
-				parlay::par_do(
+				auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents); //contention-free
+				auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents); //contention-free
+				parlay::par_do( //contention-free
 					[&](){heaps[u]->delete_min();},
 					[&](){heaps[v]->delete_min();}
 				);
-				uf.unite(u,v);
+				uf.unite(u,v); //contention-free
 				size_t temp;
-				if (simple_union_find::find_compress(u, uf.parents) == v){
+				if (uf.parents[v] == v){
 					heaps[v]->merge(heaps[u]);
 					if (heaps[v]->is_empty()){ break;}
 					temp = std::get<1>(heaps[v]->find_min());
@@ -80,9 +82,10 @@ void Dendogram(Graph& GA){
 			}
 		}
 	});
-
 	for (size_t i=0; i<m; i++){
-		std::cout << i << " -> " << parents[i] << std::endl;
+		if (parents[i] == i){
+			std::cout << i << " -> " << parents[i] << " "  << std::get<2>(mst_edges[i]) <<  std::endl;
+		}
 	}
 }
 

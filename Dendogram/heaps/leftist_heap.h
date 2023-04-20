@@ -72,11 +72,7 @@ struct leftist_heap{
       }
     
     std::pair<W, size_t> find_min(){
-        if (root){
-            return {root->key, root->val};
-        } else{
-            return {NULL,NULL};
-        }
+        return {root->key, root->val};
     }
 
     void delete_min(){
@@ -101,7 +97,8 @@ struct leftist_heap{
     void merge(leftist_heap<W>* heap){
         root = meld(root, heap->root);
         size += heap->size;
-        delete heap;
+        heap->root = nullptr;
+        heap->size = 0;
     }
 };
 
