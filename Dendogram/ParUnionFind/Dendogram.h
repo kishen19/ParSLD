@@ -52,7 +52,7 @@ sequence<uintE> Dendogram(Graph& GA){
 		}
 	});
 
-	//Step 4: Apply Union-Find in rounds, processing local minima edges in each round
+	//Step 4: Apply Union-Find in (async) rounds, processing local minima edges in each round
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
 	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendogram
 	auto heights = sequence<uintE>(m,0);
