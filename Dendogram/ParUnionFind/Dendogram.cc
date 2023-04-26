@@ -23,10 +23,10 @@ double Dendogram_runner(Graph& G, commandLine P) {
 	std::cout << "### ------------------------------------" << std::endl;
 	assert(P.getOption("-s"));
 
-	timer t;
-	t.start();
-	Dendogram(G);
-	double tt = t.stop();
+	// timer t;
+	// t.start();
+	double tt = DendogramParUF(G);
+	// double tt = t.stop();
 
 	std::cout << "### Running Time: " << tt << std::endl;
 	return tt;

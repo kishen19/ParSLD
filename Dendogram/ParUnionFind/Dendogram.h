@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-sequence<uintE> Dendogram(Graph& GA){
+double DendogramParUF(Graph& GA){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, size_t>;
 	size_t n = GA.n;
@@ -21,6 +21,8 @@ sequence<uintE> Dendogram(Graph& GA){
 	// Step 2: Initialize (Leftist/Skew/Pairing) Heaps and Union Find
 	// Async initialization of heaps: O(nlogh) work and O(hlogh) depth
 	// auto heaps = sequence<leftist_heap::leftist_heap<kv>*>(n);
+	timer t;
+	t.start();
 	auto heaps = sequence<skew_heap::skew_heap<kv>*>(n);
 	parallel_for(0, n, [&](size_t i){
 		// heaps[i] = new leftist_heap::leftist_heap<kv>();
@@ -91,9 +93,10 @@ sequence<uintE> Dendogram(Graph& GA){
 		}
 	});
 
+	double tt = t.stop();
 	std::cout << std::endl << "=> Dendogram Height = " << parlay::reduce_max(heights) << std::endl;
 
-	return parents;
+	return tt;
 }
 
 }  // namespace gbbs

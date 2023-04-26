@@ -193,8 +193,8 @@ inline size_t Boruvka(edge_array<W>& E, uintE*& vtxs, uintE*& next_vtxs,
     round++;
   }
 
-  std::cout << "Boruvka finished: total edges added to MinimumSpanningForest = "
-            << n_in_mst << "\n";
+  debug(std::cout << "Boruvka finished: total edges added to MinimumSpanningForest = "
+            << n_in_mst << "\n";);
   gbbs::free_array(edge_ids, m);
   gbbs::free_array(next_edge_ids, m);
   return n_in_mst;
@@ -301,7 +301,7 @@ inline edge_array<W> get_top_k(symmetric_graph<vertex, W>& G, size_t k,
     // Special pred for performing extra hashing on edges with weight ==
     // split_wgh.
     double frac_to_take = (1.0 * (ind - first_ind)) / weight_size;
-    std::cout << "frac of split_weight to take: " << frac_to_take << "\n";
+    debug(std::cout << "frac of split_weight to take: " << frac_to_take << "\n";);
     size_t range = (1L << parlay::log2_up(G.m)) - 1;
     size_t threshold = frac_to_take * range;
     // account for filtering directed edges
@@ -330,7 +330,7 @@ inline sequence<std::tuple<uintE, uintE, W>> MinimumSpanningForest(
   using vtxid_wgh_pair = std::pair<uintE, W>;
 
   size_t n = GA.n;
-  std::cout << "n = " << n << "\n";
+  debug(std::cout << "n = " << n << "\n";);
   auto r = parlay::random();
 
   auto exhausted =
@@ -357,10 +357,10 @@ inline sequence<std::tuple<uintE, uintE, W>> MinimumSpanningForest(
   while (GA.m > 0) {
     timer round_t;
     round_t.start();
-    std::cout << "\n";
-    std::cout << "round = " << round << " n_active = " << n_active
-              << " GA.m = " << GA.m
-              << " MinimumSpanningForest size = " << mst_edges.size() << "\n";
+    debug(std::cout << "\n";
+      std::cout << "round = " << round << " n_active = " << n_active
+                << " GA.m = " << GA.m
+                << " MinimumSpanningForest size = " << mst_edges.size() << "\n";);
 
     // find a prefix of lowest-weight edges.
     size_t split_idx = std::min((3 * n) / 2, (size_t)GA.m);
@@ -376,8 +376,8 @@ inline sequence<std::tuple<uintE, uintE, W>> MinimumSpanningForest(
     get_t.stop();
     debug(get_t.next("get time"););
     size_t n_edges = E.size();
-    std::cout << "Prefix size = " << split_idx << " #edges = " << n_edges
-              << " G.m is now = " << GA.m << "\n";
+    debug(std::cout << "Prefix size = " << split_idx << " #edges = " << n_edges
+              << " G.m is now = " << GA.m << "\n";);
 
     // relabel edges
     auto& edges = E.E;
@@ -443,7 +443,7 @@ inline sequence<std::tuple<uintE, uintE, W>> MinimumSpanningForest(
     filter_edges(GA, filter_pred);
     filter_t.stop();
     filter_t.next("filter time");
-    std::cout << "After filter, m is now " << GA.m << "\n";
+    debug(std::cout << "After filter, m is now " << GA.m << "\n";);
     round++;
     round_t.stop();
     round_t.next("round time");

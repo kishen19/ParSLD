@@ -232,8 +232,8 @@ edge_array<typename Graph::weight_type> filter_edges(Graph& G, P& pred,
   size_t total_space =
       std::get<2>(vtx_offs[n]);  // total space needed for all vertices
   size_t output_size = std::get<1>(vtx_offs[n]);
-  std::cout << "# tmp space to allocate = " << total_space
-            << " output size = " << output_size << "\n";
+  debug(std::cout << "# tmp space to allocate = " << total_space
+            << " output size = " << output_size << "\n";);
   auto arr = sequence<edge>::uninitialized(output_size);
   auto tmp = sequence<std::tuple<uintE, W>>::uninitialized(total_space);
 
@@ -274,7 +274,7 @@ edge_array<typename Graph::weight_type> filter_edges(Graph& G, P& pred,
       n, [&](size_t i) { return G.get_vertex(i).out_degree(); });
 
   G.m = parlay::reduce(degree_imap);
-  std::cout << "# G.m is now = " << G.m << "\n";
+  debug(std::cout << "# G.m is now = " << G.m << "\n";);
 
   return edge_array<W>(std::move(arr), n);
 }
@@ -303,7 +303,7 @@ edge_array<typename Graph::weight_type> filter_all_edges(Graph& G, P& p,
                        parlay::make_monoid(scan_f, std::make_tuple(0, 0)));
   size_t total_space = std::get<1>(offs[n]);
   auto tmp = sequence<std::tuple<uintE, W>>(total_space);
-  std::cout << "# tmp space allocated = " << total_space << "\n";
+  debug(std::cout << "# tmp space allocated = " << total_space << "\n";);
 
   size_t total_edges = std::get<0>(offs[n]);
   auto arr = sequence<edge>(total_edges);
