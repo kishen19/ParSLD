@@ -5,6 +5,7 @@
 #include "benchmarks/MinimumSpanningForest/Boruvka/MinimumSpanningForest.h"
 #include "Dendogram/heaps/leftist_heap.h"
 #include "Dendogram/heaps/skew_heap.h"
+#include "Dendogram/heaps/pairing_heap.h"
 
 namespace gbbs {
 
@@ -20,18 +21,16 @@ double DendogramParUF(Graph& GA){
 
 	// Step 2: Initialize (Leftist/Skew/Pairing) Heaps and Union Find
 	// Async initialization of heaps: O(nlogh) work and O(hlogh) depth
-	// auto heaps = sequence<leftist_heap::leftist_heap<kv>*>(n);
 	timer t;
 	t.start();
-	auto heaps = sequence<skew_heap::skew_heap<kv>*>(n);
-	parallel_for(0, n, [&](size_t i){
-		// heaps[i] = new leftist_heap::leftist_heap<kv>();
-		heaps[i] = new skew_heap::skew_heap<kv>();
-	});
+	// auto heaps = sequence<leftist_heap::leftist_heap<kv>>(n);
+	// auto heaps = sequence<skew_heap::skew_heap<kv>>(n);
+	auto heaps = sequence<pairing_heap::pairing_heap<kv>>(n);
+
 	auto locks = sequence<bool>(n,0);
 	auto func = [&](const uintE& u, const W& wgh, const size_t& ind){
 		while (!gbbs::atomic_compare_and_swap(&locks[u],false,true)){}
-		heaps[u]->insert({wgh, ind});
+		heaps[u].insert({wgh, ind});
 		locks[u] = false;
 	};
 	parallel_for(0, m, [&](size_t i){
@@ -48,8 +47,8 @@ double DendogramParUF(Graph& GA){
 	// is_ready[ind] = 2 => edge is a local minimum
 	auto is_ready = sequence<int>(m,0);
 	parallel_for(0, n, [&](size_t u){
-		if (heaps[u]->size > 0){
-			auto min_elem = heaps[u]->find_min();
+		if (!(heaps[u].is_empty())){
+			auto min_elem = heaps[u].find_min();
 			gbbs::write_add(&is_ready[std::get<1>(min_elem)], 1);
 		}
 	});
@@ -68,19 +67,19 @@ double DendogramParUF(Graph& GA){
 				auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
 				auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
 				parlay::par_do(
-					[&](){heaps[u]->delete_min();},
-					[&](){heaps[v]->delete_min();}
+					[&](){heaps[u].delete_min();},
+					[&](){heaps[v].delete_min();}
 				);
 				uf.unite(u,v);
 				size_t temp;
 				if (uf.parents[v] == v){
-					heaps[v]->merge(heaps[u]);
-					if (heaps[v]->is_empty()){ break;}
-					temp = std::get<1>(heaps[v]->find_min());
+					heaps[v].merge(&heaps[u]);
+					if (heaps[v].is_empty()){ break;}
+					temp = std::get<1>(heaps[v].find_min());
 				} else {
-					heaps[u]->merge(heaps[v]);
-					if (heaps[u]->is_empty()){ break;}
-					temp = std::get<1>(heaps[u]->find_min());
+					heaps[u].merge(&heaps[v]);
+					if (heaps[u].is_empty()){ break;}
+					temp = std::get<1>(heaps[u].find_min());
 				}
 				gbbs::write_max(&heights[temp], heights[ind]+1);
 				parents[ind] = temp;
@@ -96,6 +95,7 @@ double DendogramParUF(Graph& GA){
 	double tt = t.stop();
 	std::cout << std::endl << "=> Dendogram Height = " << parlay::reduce_max(heights) << std::endl;
 
+	// return parents;
 	return tt;
 }
 

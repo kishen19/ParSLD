@@ -61,6 +61,8 @@ double DendogramSeqUF(Graph& GA){
 
 	double tt = t.stop();
 	std::cout << std::endl << "=> Dendogram Height = " << parlay::reduce_max(heights) << std::endl;
+
+	// return parents;
 	return tt;
 }
 

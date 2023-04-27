@@ -52,7 +52,14 @@ leftist_heap_node<key_type>* meld(leftist_heap_node<key_type>* L, leftist_heap_n
             }
             return L;
         } else {
-            return meld(R, L);
+            if (R->left == nullptr){
+                R->left = L;
+            } else{
+                R->right = meld(R->right, L);
+                R->swap_child();
+                R->reassign_rank();
+            }
+            return R;
         }
     }
 }
@@ -60,16 +67,9 @@ leftist_heap_node<key_type>* meld(leftist_heap_node<key_type>* L, leftist_heap_n
 template <typename key_type>
 struct leftist_heap{
     leftist_heap_node<key_type>* root;
-    size_t size;
 
     leftist_heap(leftist_heap_node<key_type>* _root = nullptr)
-      : root(_root){
-        if (root){
-            size = 1;
-        } else{
-            size = 0;
-        }
-      }
+      : root(_root){}
     
     key_type find_min(){
         return root->key;
@@ -80,25 +80,21 @@ struct leftist_heap{
             leftist_heap_node<key_type>* temp = root;
             root = meld(root->left, root->right);
             delete temp;
-            size--;
         }
     }
 
     bool is_empty(){
-        return (size==0);
+        return (root == nullptr);
     }
 
     void insert(key_type key){
-        auto new_node = new leftist_heap_node<key_type>(key);
+        leftist_heap_node<key_type>* new_node = new leftist_heap_node<key_type>(key);
         root = meld(root, new_node);
-        size++;
     }
 
     void merge(leftist_heap<key_type>* heap){
         root = meld(root, heap->root);
-        size += heap->size;
         heap->root = nullptr;
-        heap->size = 0;
     }
 };
 
