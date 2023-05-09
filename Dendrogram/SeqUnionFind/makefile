@@ -3,6 +3,6 @@ ROOTDIR = $(strip $(shell git rev-parse --show-cdup))
 
 include $(ROOTDIR)makefile.variables
 
-ALL= Dendogram
+ALL= Dendrogram
 
 include $(ROOTDIR)benchmarks/makefile.benchmarks

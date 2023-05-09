@@ -1,5 +1,5 @@
 // Usage:
-// ./Dendogram -s -rounds 1 ../../inputs/rMatGraph_WJ_5_100
+// ./Dendrogram -s -rounds 1 ../../inputs/rMatGraph_WJ_5_100
 // flags:
 //   required:
 //     -s : indicates that the graph is symmetric
@@ -8,14 +8,14 @@
 //     -c : indicate that the graph is compressed
 //     -rounds : the number of times to run the algorithm
 
-#include "Dendogram.h"
+#include "Dendrogram.h"
 
 namespace gbbs {
 namespace {
 
 template <class Graph>
-double Dendogram_runner(Graph& G, commandLine P) {
-	std::cout << "### Application: Dendogram Construction" << std::endl;
+double Dendrogram_runner(Graph& G, commandLine P) {
+	std::cout << "### Application: Dendrogram Construction" << std::endl;
 	std::cout << "### Graph: " << P.getArgument(0) << std::endl;
 	std::cout << "### Threads: " << num_workers() << std::endl;
 	std::cout << "### n: " << G.n << std::endl;
@@ -25,7 +25,7 @@ double Dendogram_runner(Graph& G, commandLine P) {
 
 	// timer t;
 	// t.start();
-	double tt = DendogramParUF(G);
+	double tt = DendrogramParUF(G);
 	// double tt = t.stop();
 
 	std::cout << "### Running Time: " << tt << std::endl;
@@ -35,4 +35,4 @@ double Dendogram_runner(Graph& G, commandLine P) {
 }  // namespace
 }  // namespace gbbs
 
-generate_symmetric_weighted_main(gbbs::Dendogram_runner, true);
+generate_symmetric_weighted_main(gbbs::Dendrogram_runner, true);

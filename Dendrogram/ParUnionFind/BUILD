@@ -1,8 +1,8 @@
 licenses(["notice"])
 
 cc_library(
-    name = "Dendogram",
-    hdrs = ["Dendogram.h"],
+    name = "Dendrogram",
+    hdrs = ["Dendrogram.h"],
     deps = [
         "//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
         "//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
@@ -11,9 +11,9 @@ cc_library(
 )
 
 cc_binary(
-    name = "Dendogram_main",
-    srcs = ["Dendogram.cc"],
-    deps = [":Dendogram"],
+    name = "Dendrogram_main",
+    srcs = ["Dendrogram.cc"],
+    deps = [":Dendrogram"],
 )
 
 package(

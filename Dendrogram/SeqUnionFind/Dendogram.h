@@ -3,13 +3,13 @@
 #include "gbbs/gbbs.h"
 #include "benchmarks/Connectivity/SimpleUnionAsync/Connectivity.h"
 #include "benchmarks/MinimumSpanningForest/Boruvka/MinimumSpanningForest.h"
-#include "Dendogram/heaps/leftist_heap.h"
-#include "Dendogram/heaps/skew_heap.h"
+#include "Dendrogram/heaps/leftist_heap.h"
+#include "Dendrogram/heaps/skew_heap.h"
 
 namespace gbbs {
 
 template <class Graph>
-double DendogramSeqUF(Graph& GA){
+double DendrogramSeqUF(Graph& GA){
 	size_t n = GA.n;
 
 	// Step 1: Get MST (MSF) of the given graph
@@ -36,8 +36,8 @@ double DendogramSeqUF(Graph& GA){
 	// Step 3: Applying Union Find to the sorted sequence of edges
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
 	auto aux = sequence<size_t>(n,n); // extra info required for assigning parents
-	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendogram
-	auto heights = sequence<uintE>(m,0); // Heights of every node in the dendogram
+	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendrogram
+	auto heights = sequence<uintE>(m,0); // Heights of every node in the dendrogram
 
 	for(size_t ind = 0; ind < m; ind++){
 		auto i = indices[ind];
@@ -60,7 +60,7 @@ double DendogramSeqUF(Graph& GA){
 	};
 
 	double tt = t.stop();
-	std::cout << std::endl << "=> Dendogram Height = " << parlay::reduce_max(heights) << std::endl;
+	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	// return parents;
 	return tt;
