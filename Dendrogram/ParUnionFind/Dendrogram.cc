@@ -9,6 +9,7 @@
 //     -rounds : the number of times to run the algorithm
 
 #include "Dendrogram.h"
+// #include "Dendro.h"
 
 namespace gbbs {
 namespace {

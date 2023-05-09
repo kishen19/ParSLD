@@ -82,9 +82,10 @@ struct pairing_heap{
     }
 
     template <class Seq>
-    pairing_heap_node<key_type>* heapify(const Seq& A){
+    pairing_heap_node<key_type>* heapify_dc(const Seq& A){
         auto n = A.size();
-        if (n <= 64){
+        if (n == 0) {return nullptr;}
+        else if (n <= 256){
             auto temp = new pairing_heap_node<key_type>(A[0]);
             for (size_t i=1; i<n; i++){
                 auto new_node = new pairing_heap_node<key_type>(A[i]);
@@ -94,16 +95,40 @@ struct pairing_heap{
         } else {
             pairing_heap_node<key_type> *heap1, *heap2;
             parlay::par_do(
-                [&](){heap1 = heapify(A.cut(0, n/2));},
-                [&](){heap2 = heapify(A.cut(n/2, n));}
+                [&](){heap1 = heapify_dc(A.cut(0, n/2));},
+                [&](){heap2 = heapify_dc(A.cut(n/2, n));}
             );
             return meld(heap1, heap2);
         }
     }
 
     template <class Seq>
+    pairing_heap_node<key_type>* heapify_linear(const Seq& A){ // assuming sorted by (weights,ind)
+        auto n = A.size();
+        if (n == 0) {return nullptr;}
+        else{
+            timer t;
+            t.start();
+            auto nodes = gbbs::sequence<pairing_heap_node<key_type>*>::uninitialized(n);
+            parallel_for(0, n, [&](size_t i){
+                nodes[i] = new pairing_heap_node<key_type>(A[i]);
+            });
+            parallel_for(0, n, [&](size_t i){
+                if (2*i+1 < n){
+                    nodes[i]->child = nodes[2*i+1];
+                }
+                if (2*i+2 < n){
+                    nodes[i]->child->sibling = nodes[2*i+2];
+                }
+            });
+            return nodes[0];
+        }
+    }
+
+    template <class Seq>
     void create_heap(const Seq& A){
-        root = heapify(A);
+        root = heapify_linear(A);
+        // root = heapify_dc(A);
     }
 };
 
