@@ -12,54 +12,39 @@ namespace gbbs {
 template <class Graph>
 double DendrogramParUF(Graph& GA){
 	using W = typename Graph::weight_type;
-	using kv = std::tuple<W, size_t>;
-	using edge = std::tuple<uintE, W, size_t>;
+	using kv = std::pair<W, size_t>;
 	size_t n = GA.n;
 
 	timer t;
 	t.start();
 
-	// Step 1: Get MST (MSF) of the given graph
+    // Step 1: Get MST (MSF) of the given graph
 	auto mst_edges = MinimumSpanningForest_boruvka::MinimumSpanningForest(GA);
 	size_t m = mst_edges.size();
-	t.next("MST Time");
+    t.next("MST Time");
 
 	// Step 2: Initialize (Leftist/Skew/Pairing) Heaps and Union Find
-	auto new_edges = sequence<edge>::uninitialized(2*m);
-	parallel_for(0, m, [&](size_t i){
-		uintE u,v;
-		W w;
-		std::tie(u,v,w) = mst_edges[i];
-		new_edges[2*i] = std::make_tuple(u,w,i);
-		new_edges[2*i+1] = std::make_tuple(v,w,i);
-	});
-	sort_inplace(new_edges);
-	
-	auto sizes = sequence<uintT>(n, 0);
-	sizes[std::get<0>(new_edges[2*m-1])] = 2*m;
-    parallel_for(0, 2*m-1, [&](size_t i) {
-		if (std::get<0>(new_edges[i]) != std::get<0>(new_edges[i+1])){
-			sizes[std::get<0>(new_edges[i])] = i+1;
-		}
-	});
-	parallel_for(1, 2*m, [&](size_t i) {
-		if (std::get<0>(new_edges[i]) != std::get<0>(new_edges[i-1])){
-			sizes[std::get<0>(new_edges[i])] -= i;
-		}
-	});
-	
-    auto offsets = parlay::scan(make_slice(sizes)).first;
-	auto heap_stuff = parlay::sequence<kv>::from_function(2*m, [&](size_t i){
-		return std::make_tuple(std::get<1>(new_edges[i]), std::get<2>(new_edges[i]));
-	});
+	// Async initialization of heaps: O(nlogh) work and O(hlogh) depth
 
-    // auto heaps = sequence<leftist_heap::leftist_heap<kv>>(n);
+	// auto heaps = sequence<leftist_heap::leftist_heap<kv>>(n);
 	// auto heaps = sequence<skew_heap::skew_heap<kv>>(n);
 	auto heaps = sequence<pairing_heap::pairing_heap<kv>>(n);
 
-    parallel_for(0, n, [&](size_t i){
-        heaps[i].create_heap(heap_stuff.cut(offsets[i], offsets[i]+sizes[i]));
-    });
+	auto locks = sequence<bool>(n,0);
+	auto func = [&](const uintE& u, const W& wgh, const size_t& ind){
+		while (!gbbs::atomic_compare_and_swap(&locks[u],false,true)){}
+		heaps[u].insert({wgh, ind});
+		locks[u] = false;
+	};
+	parallel_for(0, m, [&](size_t i){
+		auto s = std::get<0>(mst_edges[i]);
+		auto t = std::get<1>(mst_edges[i]);
+		auto w = std::get<2>(mst_edges[i]);
+		parlay::par_do(
+			[&](){func(s,w,i);}, 
+			[&](){func(t,w,i);}
+		);
+	});
 
 	// Step 3: Find initial "local minimum" edges
 	// is_ready[ind] = 2 => edge is a local minimum
@@ -70,7 +55,7 @@ double DendrogramParUF(Graph& GA){
 			gbbs::write_add(&is_ready[std::get<1>(min_elem)], 1);
 		}
 	});
-	t.next("Init Time");
+    t.next("Init Time");
 
 	//Step 4: Apply Union-Find in (async) rounds, processing local minima edges in each round
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
@@ -78,26 +63,28 @@ double DendrogramParUF(Graph& GA){
 	auto heights = sequence<uintE>(m,0);
 	parallel_for(0, m, 1, [&](size_t i){
 		auto edge = mst_edges[i];
-		size_t ind = i, temp;
-		uintE u,v,x,y;
+		auto ind = i;
 		while (1) {
 			if (gbbs::atomic_compare_and_swap(&is_ready[ind], 2, 0)){
 				// All steps here are "contention-free" since other procs cannot process 
 				// the edges incident on u and v until the edge (u,v) is processed
-				u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
-				v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
+				auto u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
+				auto v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
 				parlay::par_do(
 					[&](){heaps[u].delete_min();},
 					[&](){heaps[v].delete_min();}
 				);
 				uf.unite(u,v);
-				x = simple_union_find::find_compress(u, uf.parents);
-				y = x^u^v;
-				heaps[x].merge(&heaps[y]);
-				if (heaps[x].is_empty()){
-					break;
+				size_t temp;
+				if (uf.parents[v] == v){
+					heaps[v].merge(&heaps[u]);
+					if (heaps[v].is_empty()){ break;}
+					temp = std::get<1>(heaps[v].find_min());
+				} else {
+					heaps[u].merge(&heaps[v]);
+					if (heaps[u].is_empty()){ break;}
+					temp = std::get<1>(heaps[u].find_min());
 				}
-				temp = std::get<1>(heaps[x].find_min());
 				gbbs::write_max(&heights[temp], heights[ind]+1);
 				parents[ind] = temp;
 				ind = temp;
@@ -108,10 +95,10 @@ double DendrogramParUF(Graph& GA){
 			}
 		}
 	});
-	t.next("Dendrogram Time");
-	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
+    t.next("Dendrogram Time");
 
 	double tt = t.total_time();
+	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	// return parents;
 	return tt;

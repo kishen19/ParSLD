@@ -76,39 +76,52 @@ double DendrogramParUF(Graph& GA){
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
 	auto parents = sequence<uintE>::from_function(m, [&](size_t i){return i;}); //Output Dendrogram
 	auto heights = sequence<uintE>(m,0);
-	parallel_for(0, m, 1, [&](size_t i){
-		auto edge = mst_edges[i];
-		size_t ind = i, temp;
-		uintE u,v,x,y;
-		while (1) {
-			if (gbbs::atomic_compare_and_swap(&is_ready[ind], 2, 0)){
-				// All steps here are "contention-free" since other procs cannot process 
-				// the edges incident on u and v until the edge (u,v) is processed
-				u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
-				v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
-				parlay::par_do(
-					[&](){heaps[u].delete_min();},
-					[&](){heaps[v].delete_min();}
-				);
-				uf.unite(u,v);
-				x = simple_union_find::find_compress(u, uf.parents);
-				y = x^u^v;
-				heaps[x].merge(&heaps[y]);
-				if (heaps[x].is_empty()){
-					break;
-				}
-				temp = std::get<1>(heaps[x].find_min());
-				gbbs::write_max(&heights[temp], heights[ind]+1);
+	auto proc_edges = parlay::filter(parlay::iota(m), [&](size_t i){return is_ready[i]==2;});
+	auto num = proc_edges.size();
+	std::cout << "num = " << num << std::endl;
+	while (num > 1){
+		parallel_for(0, num, [&](size_t i){
+			size_t ind = proc_edges[i];
+			auto edge = mst_edges[ind];
+			is_ready[ind]++;
+			uintE u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
+			uintE v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
+			parlay::par_do(
+				[&](){heaps[u].delete_min();},
+				[&](){heaps[v].delete_min();}
+			);
+			uf.unite(u,v);
+			uintE x = simple_union_find::find_compress(u, uf.parents);
+			uintE y = x^u^v;
+			heaps[x].merge(&heaps[y]);
+			if (heaps[x].is_empty()){
+				proc_edges[i] = m;
+			} else{
+				size_t temp = std::get<1>(heaps[x].find_min());
+				heights[temp] = std::max(heights[temp], heights[ind]+1);
 				parents[ind] = temp;
-				ind = temp;
-				edge = mst_edges[ind];
-				gbbs::write_add(&is_ready[ind], 1);
-			} else{ // Edge is not ready, will be processed by neighbor in the future
-				break;
+				gbbs::write_add(&is_ready[temp], 1);
+				if (gbbs::atomic_compare_and_swap(&is_ready[temp], 2, 3)){
+					proc_edges[i] = temp;
+				} else{
+					proc_edges[i] = m;
+				}
 			}
-		}
-	});
+		});
+		auto new_edges = parlay::filter(proc_edges, [&](auto i){return (i!=m);});
+		proc_edges = new_edges;
+		num = proc_edges.size();
+		// std::cout << "num = " << num  << std::endl;
+	}
+	auto rem_edges = parlay::pack(mst_edges, parlay::delayed_seq<bool>(m, [&](size_t i){return is_ready[i]<3;}));
+	sort_inplace(rem_edges);
+	// num = rem_edges.size();
+	// parallel_for(0, num, [&](size_t i){
+		
+	// });
 	t.next("Dendrogram Time");
+	std::cout << "Remaining Edges = " << rem_edges.size() << std::endl;
+	// std::cout << "Num Iters = " << num_iters << std::endl;
 	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	double tt = t.total_time();

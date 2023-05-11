@@ -76,6 +76,25 @@ struct pairing_heap{
         root = meld(root, new_node);
     }
 
+    // void insert_atomic(key_type key){
+    //     pairing_heap_node<key_type>* new_node = new pairing_heap_node<key_type>(key);
+    //     pairing_heap_node<key_type>* w = nullptr;
+    //     if (!atomic_compare_and_swap(&root, w, new_node)){
+    //         do{
+    //             w = root->child;
+    //             new_node->sibling = w;
+    //         } while (!atomic_compare_and_swap(&root->child, w, new_node));
+    //     }
+    // }
+
+    // void fix_heap(){
+    //     if (root){
+    //         pairing_heap_node<key_type>* temp = root;
+    //         root = two_pass_merge(root->child);
+    //         root = meld(root, temp);
+    //     }
+    // }
+
     void merge(pairing_heap<key_type>* heap){
         root = meld(root, heap->root);
         heap->root = nullptr;
@@ -85,7 +104,7 @@ struct pairing_heap{
     pairing_heap_node<key_type>* heapify_dc(const Seq& A){
         auto n = A.size();
         if (n == 0) {return nullptr;}
-        else if (n <= 256){
+        else if (n <= 2048){
             auto temp = new pairing_heap_node<key_type>(A[0]);
             for (size_t i=1; i<n; i++){
                 auto new_node = new pairing_heap_node<key_type>(A[i]);
@@ -110,10 +129,10 @@ struct pairing_heap{
             timer t;
             t.start();
             auto nodes = gbbs::sequence<pairing_heap_node<key_type>*>::uninitialized(n);
-            parallel_for(0, n, [&](size_t i){
+            parallel_for(0, n, 2048, [&](size_t i){
                 nodes[i] = new pairing_heap_node<key_type>(A[i]);
             });
-            parallel_for(0, n, [&](size_t i){
+            parallel_for(0, n, 2048, [&](size_t i){
                 if (2*i+1 < n){
                     nodes[i]->child = nodes[2*i+1];
                 }

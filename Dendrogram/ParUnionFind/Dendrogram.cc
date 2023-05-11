@@ -8,8 +8,10 @@
 //     -c : indicate that the graph is compressed
 //     -rounds : the number of times to run the algorithm
 
-#include "Dendrogram.h"
+// #include "Dendrogram.h"
 // #include "Dendro.h"
+// #include "Dend.h"
+#include "DendSync.h"
 
 namespace gbbs {
 namespace {

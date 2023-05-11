@@ -60,7 +60,6 @@ double DendrogramParUF(Graph& GA){
     parallel_for(0, n, [&](size_t i){
         heaps[i].create_heap(heap_stuff.cut(offsets[i], offsets[i]+sizes[i]));
     });
-	t.next("Heap Init Time");
 
 	// Step 3: Find initial "local minimum" edges
 	// is_ready[ind] = 2 => edge is a local minimum
@@ -71,7 +70,7 @@ double DendrogramParUF(Graph& GA){
 			gbbs::write_add(&is_ready[std::get<1>(min_elem)], 1);
 		}
 	});
-	t.next("Finding Local Min Edges Time");
+	t.next("Init Time");
 
 	//Step 4: Apply Union-Find in (async) rounds, processing local minima edges in each round
 	auto uf = simple_union_find::SimpleUnionAsyncStruct(n);
@@ -79,7 +78,7 @@ double DendrogramParUF(Graph& GA){
 	auto heights = sequence<uintE>(m,0);
 	auto proc_edges = parlay::filter(parlay::iota(m), [&](size_t i){return is_ready[i]==2;});
 	auto num = proc_edges.size();
-	std::cout << "Ready Edges = " << num << std::endl; 
+	// std::cout << "Ready Edges = " << num << std::endl; 
 	parallel_for(0, num, [&](size_t i){
 		size_t ind = proc_edges[i], temp;
 		auto edge = mst_edges[ind];
@@ -114,9 +113,10 @@ double DendrogramParUF(Graph& GA){
 			}
 		}
 	});
-	auto rem_edges = parlay::filter(parlay::iota(m), [&](size_t i){return is_ready[i]<3;});
-	std::cout << "Remaining Edges = " << rem_edges.size() << std::endl;
+	auto rem_edges = parlay::pack(mst_edges, parlay::delayed_seq<bool>(m, [&](size_t i){return is_ready[i]<3;}));
+	sort_inplace(rem_edges);
 	t.next("Dendrogram Time");
+	std::cout << "Remaining Edges = " << rem_edges.size() << std::endl;
 	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	double tt = t.total_time();
