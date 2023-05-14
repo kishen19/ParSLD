@@ -1,17 +1,19 @@
 #pragma once
 
-#include "gbbs/gbbs.h"
-
 namespace gbbs{
 
 namespace leftist_heap{
 
 template <typename key_type>
-struct leftist_heap_node{
+struct node{
     key_type key;
-    leftist_heap_node* left;
-    leftist_heap_node* right;
+    node* left;
+    node* right;
     size_t rank;
+
+    node(key_type _key) : key(_key), left(nullptr), right(nullptr) {
+        rank = 1;
+    }
 
     void reassign_rank(){
         if (right){
@@ -21,14 +23,9 @@ struct leftist_heap_node{
         }
     }
     
-    leftist_heap_node(key_type _key, leftist_heap_node* _left = nullptr, leftist_heap_node* _right = nullptr) 
-    : key(_key), left(_left), right(_right) {
-        reassign_rank();
-    }
-    
     void swap_child(){
         if (left->rank > right->rank){
-            leftist_heap_node* temp = left;
+            node* temp = left;
             left = right;
             right = temp;
         }
@@ -36,7 +33,7 @@ struct leftist_heap_node{
 };
 
 template <typename key_type>
-leftist_heap_node<key_type>* meld(leftist_heap_node<key_type>* L, leftist_heap_node<key_type>* R){
+node<key_type>* meld(node<key_type>* L, node<key_type>* R){
     if (L == nullptr){
         return R;
     } else if (R == nullptr){
@@ -64,65 +61,85 @@ leftist_heap_node<key_type>* meld(leftist_heap_node<key_type>* L, leftist_heap_n
     }
 }
 
-template <typename key_type>
-struct leftist_heap{
-    leftist_heap_node<key_type>* root;
+/////////// Leftist Heap
 
-    leftist_heap(leftist_heap_node<key_type>* _root = nullptr)
-      : root(_root){}
+template <typename key_type>
+struct heap{
+    using node_allocator = parlay::type_allocator<node<key_type>>;
+    node<key_type>* root;
+
+    inline void init(key_type* A, size_t num){
+        root = heapify_linear(A, num);
+        // root = heapify_dc(A, num);
+    }
     
-    key_type find_min(){
+    inline key_type get_min(){
         return root->key;
     }
 
-    void delete_min(){
+    inline void delete_min(){
         if (root){
-            leftist_heap_node<key_type>* temp = root;
+            node<key_type>* temp = root;
             root = meld(root->left, root->right);
-            delete temp;
+            node_allocator::destroy(temp);
+        } else{
+            std::cout << "Empty Heap!" << std::endl;
+            std::exit(1);
         }
     }
 
-    bool is_empty(){
+    inline bool is_empty(){
         return (root == nullptr);
     }
 
-    void insert(key_type key){
-        leftist_heap_node<key_type>* new_node = new leftist_heap_node<key_type>(key);
+    inline void insert(key_type key){
+        auto new_node = node_allocator::create(key);
         root = meld(root, new_node);
     }
 
-    void merge(leftist_heap<key_type>* heap){
-        root = meld(root, heap->root);
-        heap->root = nullptr;
+    inline void merge(heap<key_type>* H){
+        root = meld(root, H->root);
+        H->root = nullptr;
     }
 
-    template <class Seq>
-    leftist_heap_node<key_type>* heapify(const Seq& A){
-        auto n = A.size();
+    node<key_type>* heapify_linear(key_type* A, size_t n){ // assuming sorted by (weights,ind)
         if (n == 0) {return nullptr;}
-        else if (n <= 256){
-            auto temp = new leftist_heap_node<key_type>(A[0]);
+        else{
+            auto nodes = gbbs::sequence<node<key_type>*>::uninitialized(n);
+            parallel_for(0, n, 2048, [&](size_t i){
+                nodes[i] = node_allocator::create(A[i]);
+            });
+            parallel_for(0, n, 256, [&](size_t i){
+                if (2*i+1 < n){
+                    nodes[i]->left = nodes[2*i+1];
+                }
+                if (2*i+2 < n){
+                    nodes[i]->right = nodes[2*i+2];
+                }
+            });
+            return nodes[0];
+        }
+    }
+
+    node<key_type>* heapify_dc(key_type* A, size_t n){
+        if (n == 0) {return nullptr;}
+        else if (n <= 2048){
+            auto temp = node_allocator::create(A[0]);
             for (size_t i=1; i<n; i++){
-                auto new_node = new leftist_heap_node<key_type>(A[i]);
+                auto new_node = node_allocator::create(A[i]);
                 temp = meld(temp, new_node);
             }
             return temp;
         } else {
-            leftist_heap_node<key_type> *heap1, *heap2;
+            node<key_type> *heap1, *heap2;
             parlay::par_do(
-                [&](){heap1 = heapify(A.cut(0, n/2));},
-                [&](){heap2 = heapify(A.cut(n/2, n));}
+                [&](){heap1 = heapify_dc(A, n/2);},
+                [&](){heap2 = heapify_dc(A + n/2, n - n/2);}
             );
             return meld(heap1, heap2);
         }
     }
-
-    template <class Seq>
-    void create_heap(const Seq& A){
-        root = heapify(A);
-    }
 };
 
-}
-}
+} // namespace leftist_heap
+} // namespace gbbs
