@@ -12,14 +12,14 @@ template <class Graph>
 double DendrogramSeqUF(Graph& GA){
 	size_t n = GA.n;
 
-	timer t;
-	t.start();
 	// Step 1: Get MST (MSF) of the given graph
 	auto mst_edges = MinimumSpanningForest_boruvka::MinimumSpanningForest(GA);
 	size_t m = mst_edges.size();
-	t.next("MST Time");
 
 	// Step 2: Sorting the edges by (weight, index)
+	timer t;
+	t.start();
+	
 	auto indices = sequence<size_t>::from_function(m, [&](size_t i){return i;});
 	auto comp = [&](const size_t& a, const size_t& b){
 		auto w_a = std::get<2>(mst_edges[a]);
@@ -62,6 +62,7 @@ double DendrogramSeqUF(Graph& GA){
 	};
 	t.next("Dendrogram Time");
 	double tt = t.total_time();
+
 	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	// return parents;

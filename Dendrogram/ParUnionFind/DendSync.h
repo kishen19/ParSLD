@@ -78,8 +78,13 @@ double DendrogramParUF(Graph& GA){
 	auto heights = sequence<uintE>(m,0);
 	auto proc_edges = parlay::filter(parlay::iota(m), [&](size_t i){return is_ready[i]==2;});
 	auto num = proc_edges.size();
+	size_t num_iters = 0;
 	std::cout << "num = " << num << std::endl;
-	while (num > 1){
+	while (1){
+		if (num == 1){
+			is_ready[proc_edges[0]] = 2;
+			break;
+		}
 		parallel_for(0, num, [&](size_t i){
 			size_t ind = proc_edges[i];
 			auto edge = mst_edges[ind];
@@ -112,19 +117,29 @@ double DendrogramParUF(Graph& GA){
 		proc_edges = new_edges;
 		num = proc_edges.size();
 		// std::cout << "num = " << num  << std::endl;
+		num_iters++;
 	}
-	auto rem_edges = parlay::pack(mst_edges, parlay::delayed_seq<bool>(m, [&](size_t i){return is_ready[i]<3;}));
-	sort_inplace(rem_edges);
-	// num = rem_edges.size();
-	// parallel_for(0, num, [&](size_t i){
-		
-	// });
-	t.next("Dendrogram Time");
-	std::cout << "Remaining Edges = " << rem_edges.size() << std::endl;
-	// std::cout << "Num Iters = " << num_iters << std::endl;
-	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
-
+	t.next("Dendrogram Stage 1 Time");
+	auto rem_edges = parlay::filter(parlay::iota(m), [&](size_t i){return is_ready[i] < 3;});
+	// auto rem_edges = parlay::pack(mst_edges, parlay::delayed_seq<bool>(m, [&](size_t i){return is_ready[i]<3;}));
+	sort_inplace(rem_edges, [&](auto e1, auto e2){
+		auto p1 = std::make_tuple(std::get<2>(mst_edges[e1]), e1);
+		auto p2 = std::make_tuple(std::get<2>(mst_edges[e2]), e2);
+		return (p1 < p2);
+	});
+	num = rem_edges.size();
+	parallel_for(0, num-1, [&](size_t i){
+		auto ind = rem_edges[i];
+		auto temp = rem_edges[i+1];
+		heights[temp] = num_iters + i + 1; //std::max(heights[temp], heights[i]+1);
+		parents[ind] = temp;
+	});
+	t.next("Dendrogram Stage 2 Time");
 	double tt = t.total_time();
+
+	std::cout << "Remaining Edges = " << num << std::endl;
+	std::cout << "Num Iters = " << num_iters << std::endl;
+	std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
 	// return parents;
 	return tt;
