@@ -5,8 +5,15 @@ load("@bazel_tools//tools/cpp:cc_configure.bzl", "cc_configure")
 cc_configure()
 
 local_repository(
+   name = "gbbs",
+   path = "external/gbbs",
+)
+
+http_archive(
     name = "parlaylib",
-    path = "external/parlaylib/include",
+    sha256 = "68c062ad116fd49d77651d7a24fb985aa66e8ec9ad05176b6af3ab5d29a16b1f",
+    strip_prefix = "parlaylib-bazel/include/",
+    urls = ["https://github.com/ParAlg/parlaylib/archive/refs/tags/bazel.tar.gz"],
 )
 
 http_archive(

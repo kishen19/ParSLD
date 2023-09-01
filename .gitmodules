@@ -1,4 +1,3 @@
-[submodule "parlaylib"]
-	path = external/parlaylib
-  url = https://github.com/ParAlg/parlaylib
-  branch = bazel_v2
+[submodule "external/gbbs"]
+	path = external/gbbs
+	url = git@github.com:ParAlg/gbbs.git

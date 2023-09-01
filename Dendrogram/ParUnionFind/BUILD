@@ -1,19 +1,38 @@
 licenses(["notice"])
 
 cc_library(
-    name = "Dendrogram",
-    hdrs = ["Dendrogram.h"],
+    name = "DendAsync",
+    hdrs = ["DendAsync.h"],
     deps = [
-        "//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
-        "//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
-        "//gbbs",
+        "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
+        "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
+        "@gbbs//gbbs",
+        "//Dendrogram/heaps:leftist_heap",
+        "//Dendrogram/heaps:skew_heap",
+        "//Dendrogram/heaps:pairing_heap",
+    ],
+)
+
+cc_library(
+    name = "DendSync",
+    hdrs = ["DendSync.h"],
+    deps = [
+        "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
+        "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
+        "@gbbs//gbbs",
+        "//Dendrogram/heaps:leftist_heap",
+        "//Dendrogram/heaps:skew_heap",
+        "//Dendrogram/heaps:pairing_heap",
     ],
 )
 
 cc_binary(
     name = "Dendrogram_main",
     srcs = ["Dendrogram.cc"],
-    deps = [":Dendrogram"],
+    deps = [
+        ":DendAsync",
+        ":DendSync",
+    ],
 )
 
 package(

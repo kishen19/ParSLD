@@ -3,8 +3,6 @@
 #include "gbbs/gbbs.h"
 #include "benchmarks/Connectivity/SimpleUnionAsync/Connectivity.h"
 #include "benchmarks/MinimumSpanningForest/Boruvka/MinimumSpanningForest.h"
-#include "Dendrogram/heaps/leftist_heap.h"
-#include "Dendrogram/heaps/skew_heap.h"
 
 namespace gbbs {
 
@@ -43,8 +41,8 @@ double DendrogramSeqUF(Graph& GA){
 
 	for(size_t ind = 0; ind < m; ind++){
 		auto i = indices[ind];
-		auto u = simple_union_find::find_compress(std::get<0>(mst_edges[i]), uf.parents);
-		auto v = simple_union_find::find_compress(std::get<1>(mst_edges[i]), uf.parents);
+		auto u = simple_union_find::find_compress(std::get<0>(mst_edges[i]), uf.parents.begin());
+		auto v = simple_union_find::find_compress(std::get<1>(mst_edges[i]), uf.parents.begin());
 		uintE height = 0;
 		if (aux[u] < m){
 			parents[aux[u]] = i;
@@ -57,7 +55,7 @@ double DendrogramSeqUF(Graph& GA){
 			aux[v] = n;
 		}
 		uf.unite(u,v);
-		aux[simple_union_find::find_compress(u, uf.parents)] = i;
+		aux[simple_union_find::find_compress(u, uf.parents.begin())] = i;
 		heights[i] = height;
 	};
 	t.next("Dendrogram Time");

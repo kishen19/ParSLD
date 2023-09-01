@@ -73,14 +73,14 @@ double DendrogramParUF(Graph& GA){
 			size_t ind = proc_edges[i];
 			auto edge = mst_edges[ind];
 			is_ready[ind]++;
-			uintE u = simple_union_find::find_compress(std::get<0>(edge), uf.parents);
-			uintE v = simple_union_find::find_compress(std::get<1>(edge), uf.parents);
+			uintE u = simple_union_find::find_compress(std::get<0>(edge), uf.parents.begin());
+			uintE v = simple_union_find::find_compress(std::get<1>(edge), uf.parents.begin());
 			parlay::par_do(
 				[&](){heaps[u].delete_min();},
 				[&](){heaps[v].delete_min();}
 			);
 			uf.unite(u,v);
-			uintE x = simple_union_find::find_compress(u, uf.parents);
+			uintE x = simple_union_find::find_compress(u, uf.parents.begin());
 			uintE y = x^u^v;
 			heaps[x].merge(&heaps[y]);
 			if (heaps[x].is_empty()){

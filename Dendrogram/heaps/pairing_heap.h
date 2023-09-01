@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gbbs/gbbs.h"
 #include "binary_heap.h"
 
 namespace gbbs{
