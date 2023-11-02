@@ -9,6 +9,11 @@ local_repository(
    path = "external/gbbs",
 )
 
+local_repository(
+   name = "fast-bcc",
+   path = "external/FAST-BCC",
+)
+
 http_archive(
     name = "parlaylib",
     sha256 = "68c062ad116fd49d77651d7a24fb985aa66e8ec9ad05176b6af3ab5d29a16b1f",

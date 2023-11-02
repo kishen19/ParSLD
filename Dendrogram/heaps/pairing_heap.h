@@ -57,11 +57,13 @@ template <typename key_type>
 struct heap{
     using node_allocator = parlay::type_allocator<node<key_type>>;
     node<key_type>* root;
+    size_t size;
 
-    heap() : root(nullptr){}
+    heap() : root(nullptr), size(0){}
 
     inline void init(key_type* A, size_t num){
         root = heapify_linear(A, num);
+        size = num;
         // root = heapify_dc(A, num);
     }
     
@@ -79,6 +81,7 @@ struct heap{
             node<key_type>* temp = root;
             root = two_pass_merge(root->child);
             node_allocator::destroy(temp);
+            size--;
         } else{
             std::cout << "Empty Heap!" << std::endl;
             std::exit(1);
@@ -86,17 +89,33 @@ struct heap{
     }
 
     inline bool is_empty(){
-        return (root == nullptr);
+        return (size == 0);
     }
 
     inline void insert(key_type key){
         auto new_node = node_allocator::create(key);
         root = meld(root, new_node);
+        size++;
     }
 
     inline void merge(heap<key_type>* H){
         root = meld(root, H->root);
+        size += H->size;
         H->root = nullptr;
+        H->size = 0;
+    }
+
+    template <class Seq>
+    size_t filter(key_type key, Seq& out){ //sequential
+        size_t k=0;
+        while (root && root->get_key() <= key){
+            auto kv = get_min();
+            delete_min();
+            out[k] = kv;
+            k++;
+        }
+        size -= k;
+        return k;
     }
 
     node<key_type>* heapify_dc(key_type* A, size_t n){

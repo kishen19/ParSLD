@@ -1,3 +1,6 @@
 [submodule "external/gbbs"]
 	path = external/gbbs
 	url = git@github.com:ParAlg/gbbs.git
+[submodule "external/FAST-BCC"]
+	path = external/FAST-BCC
+	url = https://github.com/ucrparlay/FAST-BCC.git
