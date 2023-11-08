@@ -4,7 +4,17 @@ cc_library(
     name = "Dendrogram",
     hdrs = ["Dendrogram.h"],
     deps = [
+        ":concurrent_table",
         "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
+        "@gbbs//gbbs",
+        "@gbbs//gbbs:julienne",
+    ],
+)
+
+cc_library(
+    name = "concurrent_table",
+    hdrs = ["concurrent_table.h"],
+    deps = [
         "@gbbs//gbbs",
     ],
 )
