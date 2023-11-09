@@ -92,23 +92,74 @@ double DendrogramRCtreeTracing(Graph& GA) {
     }
   };
 
-  while (rem) {
-    auto cur =
+  auto degree_one =
        parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 1; });
-    parallel_for(0, cur.size(), [&](size_t i) {
-      GA.get_vertex(cur[i]).out_neighbors().map(map_f);
-      cur[i] = rctree[cur[i]].parent;
+  while (rem) {
+    // Note that we need both the degree 1 and degree 2 buckets.
+    // Only two buckets we care about: {1, 2, everything_else}
+    // Dense iterations do help us here...
+
+    // (1) filtering out the initial frontier (degree 1 vertices)
+    // Peel:
+    // (a) emit the id of the neighbor / peeled (degree1) vertex
+    // (b) histogram the ids (do this using semisort / sort)
+    // (c) update the degrees, and filter out those that become degree 1 / 2
+
+    std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
+    if (degree_one.size() == 0) {
+      std::cout << "Remaining: " << rem << " rounds = " << round << std::endl;
+      exit(-1);
+    }
+    parallel_for(0, degree_one.size(), [&](size_t i) {
+      GA.get_vertex(degree_one[i]).out_neighbors().map(map_f);
+      degree_one[i] = rctree[degree_one[i]].parent;
     });
-    // std::cout << "check22" << std::endl;
-    auto hist = parlay::histogram_by_key(cur);
-    // std::cout << "check221 " << hist.size() <<  std::endl;
-    parallel_for(0, hist.size(),
-                 [&](size_t i) { deg[hist[i].first] -= hist[i].second; });
-    // std::cout << "check23" << std::endl;
+
+    parlay::sort_inplace(parlay::make_slice(degree_one));
+
+    auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&] (size_t i) {
+      return (i == 0) || (degree_one[i] != degree_one[i-1]);
+    });
+    auto indices = parlay::pack_index(flags);
+
+    parlay::parallel_for(0, indices.size(), [&] (size_t i) {
+      auto start = indices[i];
+      auto end = (i == indices.size() - 1) ? degree_one.size() : indices[i+1];
+      size_t dst = degree_one[start];
+      size_t degree_lost = end - start;
+      deg[dst] -= degree_lost;
+    });
+
+    auto unique_keys = parlay::delayed_seq<size_t>(indices.size(), [&] (size_t i) {
+      return degree_one[indices[i]];
+    });
+    auto new_degree_one = parlay::filter(unique_keys, [&] (size_t id) {
+      return deg[id] == 1;
+    });
+
+    rem -= degree_one.size();
     round++;
-    rem -= cur.size();
+    degree_one = std::move(new_degree_one);
   }
   t.next("RC Tree Time");
+
+//  while (rem) {
+//    auto cur =
+//       parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 1; });
+//    parallel_for(0, cur.size(), [&](size_t i) {
+//      GA.get_vertex(cur[i]).out_neighbors().map(map_f);
+//      cur[i] = rctree[cur[i]].parent;
+//    });
+//    // std::cout << "check22" << std::endl;
+//    auto hist = parlay::histogram_by_key(cur);
+//    // std::cout << "check221 " << hist.size() <<  std::endl;
+//    parallel_for(0, hist.size(),
+//                 [&](size_t i) { deg[hist[i].first] -= hist[i].second; });
+//    // std::cout << "check23" << std::endl;
+//    round++;
+//    rem -= cur.size();
+//  }
+//  t.next("RC Tree Time");
 
   // Step 2: Compute bucket_id for each edge
   auto bkt_ids = sequence<std::pair<size_t, size_t>>::uninitialized(m);
