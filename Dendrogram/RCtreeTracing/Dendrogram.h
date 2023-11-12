@@ -6,17 +6,16 @@
 #include "benchmarks/Connectivity/SimpleUnionAsync/Connectivity.h"
 
 namespace gbbs {
+size_t SIZE_T_MAX = std::numeric_limits<size_t>::max();
 
 // ~40 bytes / struct
 template <typename weight_type>
 struct RCtree_node {
   size_t parent;
-  size_t round;
   size_t edge_index;
-  weight_type wgh;  // TODO: get rid of edge_index in the weight and use the edge_index above
-  // could get rid of this by checking if alt != UINT_E_MAX
-  bool check = false;
-  uintE alt;   // used in the compress case. (default = UINT_E_MAX)
+  weight_type wgh;
+  size_t round = SIZE_T_MAX;
+  size_t alt; // used in the compress case. (default = UINT_E_MAX)
 };
 
 // GA is the weighted input tree.
@@ -25,21 +24,18 @@ double DendrogramRCtreeTracing(Graph& GA) {
   using W = typename Graph::weight_type;
   using K = std::pair<uintE, uintE>;
   using V = size_t;
+  using KA = uintE;
+  using VA = std::pair<W, size_t>;
 
   timer t;
   t.start();
   // Preprocess
   auto n = GA.n;
   auto m = GA.m / 2;
-  auto empty = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), m);
 
   // Stores the degrees as nodes are peeled.
   auto deg = sequence<size_t>::from_function(
      n, [&](size_t u) { return GA.get_vertex(u).out_degree(); });
-
-  // hash table needs to store ~n entries.
-  auto S = make_concurrent_table<K, V>(m, empty, 1.05);
-
   auto edges = sequence<std::pair<uintE, uintE>>::uninitialized(2 * m);
   auto offsets = parlay::scan(deg).first;
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
@@ -50,51 +46,133 @@ double DendrogramRCtreeTracing(Graph& GA) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
   });
   parlay::sort_inplace(edges);
+  
+  // hash table for edge -> indices
+  //    needs to store ~n entries.
+  auto emptyS = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), m);
+  auto S = make_concurrent_table<K, V>(m, emptyS, 1.05);
   parallel_for(0, m, [&](size_t i) {
     auto key_value = std::make_tuple(edges[2 * i], i);
     S.insert(key_value);
   });
-  t.next("Preprocess Time");
 
+  // Create Adjacency List: Dynamic, maintained using list of hash tables
+  auto W_MAX = std::numeric_limits<W>::max();
+  auto emptyAdj = std::make_tuple(UINT_E_MAX, std::make_pair(W_MAX, m));
+  auto adj = sequence<concurrent_table<KA,VA>>::uninitialized(n);
+  auto adj_f = [&](const uintE& src, const uintE& dst, const W& wgh){
+    auto index = S.find(std::make_pair(std::min(src, dst), std::max(src, dst)));
+    auto key_value = std::make_tuple(dst, std::make_pair(wgh, index));
+    adj[src].insert(key_value);
+  };
+  parallel_for(0, n, [&](uintE i){
+    adj[i] = make_concurrent_table<KA, VA>(deg[i], emptyAdj, 1.05);
+    GA.get_vertex(i).out_neighbors().map(adj_f);
+  });
+  t.next("Preprocess Time");
+  
   // Step 1: Compute RC Tree
   auto rctree = sequence<RCtree_node<std::pair<W, size_t>>>(n);
   // The rc-tree node where this edge was contracted / merged. This
   // is used in the query-path when we traverse up the RC tree for an
-  // edge. We may be able to get rid of this (e.g., by doing a
-  // parallel map over all RC tree nodes, and using the edgeindex
-  // stored at the node), but it's also fairly cheap and may not hurt
-  // to keep around.
-  auto edge2rcnode = sequence<size_t>::uninitialized(m);
+  // edge. 
   parallel_for(0, n, [&](size_t i) {
     rctree[i].parent = i;
-    rctree[i].edge_index =
-       m +
-       i;   // to ensure unique buckets, even if the input tree is disconnected
+    rctree[i].alt = UINT_E_MAX;
+    // to ensure unique buckets, even if the input tree is disconnected
+    rctree[i].edge_index = m + i;
   });
+  parlay::random r(42);
+  auto tosses = sequence<bool>(n,0);
   size_t rem = m, round = 0;
 
   // Implements the rake operation.
-  auto map_f = [&](const uintE& src, const uintE& dst, const W& wgh) {
-    if (deg[dst] > 1) {
+  // If deg 1 cluster merges into a deg>1 cluster:
+  //    simply merge and unite the clusters
+  //    
+  auto rake_f = [&](uintE src) -> bool {
+    auto entries = adj[src].entries(UINT_E_MAX-1);
+    auto dst = std::get<0>(entries[0]);
+    if (deg[dst] > 1 || (deg[dst]==1 && src < dst)){
+      auto wgh = std::get<1>(entries[0]).first;
+      auto edge_index = std::get<1>(entries[0]).second;
       deg[src]--;
       rctree[src].parent = dst;
       rctree[src].round = round;
-      auto key = std::make_pair(std::min(src, dst), std::max(src, dst));
-      auto edge_index = S.find(key);
-      if (edge_index == m) {
-        std::cout << src << " " << dst << " " << edge_index << std::endl;
-      }
       rctree[src].edge_index = edge_index;
-      edge2rcnode[edge_index] = src;
       rctree[src].wgh = {wgh, edge_index};
-    } else if (deg[dst] == 1) {
-      // do something; tiebreak based on id?
+      adj[dst].remove(src);
+      return true;
+    } else{
+      deg[src]--;
+      return false;
+    }
+  };
+
+  // // Implements the compress operation.
+  //    Merge into the cluster with min-weight edge
+  auto compress_f1 = [&](const uintE& src) {
+    if (tosses[src]){
+      auto entries = adj[src].entries(UINT_E_MAX-1);
+      auto dst1 = std::get<0>(entries[0]);
+      auto dst2 = std::get<0>(entries[1]);
+      if (!tosses[dst1] && !tosses[dst2]){
+        deg[src]-=2;
+        rctree[src].round = round;
+        
+        auto edge_index1 = std::get<1>(entries[0]).second;
+        auto wgh1 = std::make_pair(std::get<1>(entries[0]).first, edge_index1);
+        auto edge_index2 = std::get<1>(entries[1]).second;
+        auto wgh2 = std::make_pair(std::get<1>(entries[1]).first, edge_index2);
+        if (wgh1 < wgh2){
+          rctree[src].edge_index = edge_index1;
+          rctree[src].wgh = wgh1;
+          rctree[src].parent = dst1;
+          rctree[src].alt = dst2;
+        } else{
+          rctree[src].edge_index = edge_index2;
+          rctree[src].wgh = wgh2;
+          rctree[src].parent = dst2;
+          rctree[src].alt = dst1;
+        }
+        adj[dst1].remove(src); // remove first
+        adj[dst2].remove(src); // remove first
+      }
+    }
+  };
+
+  // // Implements the compress operation.
+  //    Merge into the cluster with min-weight edge
+  auto compress_f2 = [&](const uintE& src) {
+    if (tosses[src]){
+      auto entries = adj[src].entries(UINT_E_MAX-1);
+      auto dst1 = std::get<0>(entries[0]);
+      auto dst2 = std::get<0>(entries[1]);
+      if (!tosses[dst1] && !tosses[dst2]){
+        auto edge_index1 = std::get<1>(entries[0]).second;
+        auto wgh1 = std::get<1>(entries[0]).first;
+        auto edge_index2 = std::get<1>(entries[1]).second;
+        auto wgh2 = std::get<1>(entries[1]).first;
+        if (rctree[src].parent == dst1){
+          auto kv1 = std::make_tuple(dst2, std::make_pair(wgh2, edge_index2));
+          auto kv2 = std::make_tuple(dst1, std::make_pair(wgh2, edge_index2));
+          adj[dst1].insert(kv1, UINT_E_MAX-1);
+          adj[dst2].insert(kv2, UINT_E_MAX-1);
+        } else{
+          auto kv1 = std::make_tuple(dst2, std::make_pair(wgh1, edge_index1));
+          auto kv2 = std::make_tuple(dst1, std::make_pair(wgh1, edge_index1));
+          adj[dst1].insert(kv1, UINT_E_MAX-1);
+          adj[dst2].insert(kv2, UINT_E_MAX-1);
+        }
+      }
     }
   };
 
   auto degree_one =
        parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 1; });
-  while (rem) {
+  auto degree_two =
+       parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 2; });
+  while (rem > 0) {
     // Note that we need both the degree 1 and degree 2 buckets.
     // Only two buckets we care about: {1, 2, everything_else}
     // Dense iterations do help us here...
@@ -105,29 +183,28 @@ double DendrogramRCtreeTracing(Graph& GA) {
     // (b) histogram the ids (do this using semisort / sort)
     // (c) update the degrees, and filter out those that become degree 1 / 2
 
-    std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
-    if (degree_one.size() == 0) {
-      std::cout << "Remaining: " << rem << " rounds = " << round << std::endl;
-      exit(-1);
-    }
+    // std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
+    // std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
     parallel_for(0, degree_one.size(), [&](size_t i) {
-      GA.get_vertex(degree_one[i]).out_neighbors().map(map_f);
-      degree_one[i] = rctree[degree_one[i]].parent;
+      auto outp = rake_f(degree_one[i]);
+      degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
-
     parlay::sort_inplace(parlay::make_slice(degree_one));
-
     auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&] (size_t i) {
       return (i == 0) || (degree_one[i] != degree_one[i-1]);
     });
     auto indices = parlay::pack_index(flags);
-
+    
     parlay::parallel_for(0, indices.size(), [&] (size_t i) {
       auto start = indices[i];
       auto end = (i == indices.size() - 1) ? degree_one.size() : indices[i+1];
       size_t dst = degree_one[start];
       size_t degree_lost = end - start;
-      deg[dst] -= degree_lost;
+      if (dst < n){
+        deg[dst] -= degree_lost;
+      } else{
+        rem += degree_lost;
+      }
     });
 
     auto unique_keys = parlay::delayed_seq<size_t>(indices.size(), [&] (size_t i) {
@@ -136,41 +213,76 @@ double DendrogramRCtreeTracing(Graph& GA) {
     auto new_degree_one = parlay::filter(unique_keys, [&] (size_t id) {
       return deg[id] == 1;
     });
-
     rem -= degree_one.size();
     round++;
+
+    // Compress Part
+
+    auto recent_degree_two = parlay::filter(unique_keys, [&] (size_t id) {
+      return deg[id] == 2;
+    });
+    
+    auto old_deg2_keys = parlay::delayed_seq<size_t>(degree_two.size(), [&] (size_t i) {
+      return degree_two[i];
+    });
+    auto old_degree_two = parlay::filter(old_deg2_keys, [&] (size_t id) {
+      return deg[id] == 2;
+    });
+    size_t num_deg_two = recent_degree_two.size() + old_degree_two.size();
+    if (num_deg_two){
+      auto cur_degree_two = parlay::delayed_seq<size_t>(num_deg_two, [&](size_t i){
+        if (i < recent_degree_two.size()){
+          return recent_degree_two[i];
+        } else{
+          return old_degree_two[i-recent_degree_two.size()];
+        }
+      });
+      parallel_for(0, num_deg_two,[&](size_t i){
+        tosses[cur_degree_two[i]] = (r.ith_rand(i) >= 0.5)? 1 : 0;
+      });
+      r = r.next();
+
+      parallel_for(0, num_deg_two,[&](size_t i){
+        compress_f1(cur_degree_two[i]);
+      });
+      parallel_for(0, num_deg_two,[&](size_t i){
+        compress_f2(cur_degree_two[i]);
+      });
+      parallel_for(0, num_deg_two,[&](size_t i){
+        // std::cout << "toss value[" << cur_degree_two[i] << "] = " << tosses[cur_degree_two[i]] << std::endl;
+        tosses[cur_degree_two[i]] = 0;
+      });
+      auto new_degree_two = parlay::filter(cur_degree_two, [&](size_t id){
+        return rctree[id].round == SIZE_T_MAX;
+      });
+      degree_two = std::move(new_degree_two);
+      rem -= (num_deg_two - new_degree_two.size());
+    }
+
     degree_one = std::move(new_degree_one);
+    round++;
+    // std::cout << rem << std::endl;
   }
   t.next("RC Tree Time");
 
-//  while (rem) {
-//    auto cur =
-//       parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 1; });
-//    parallel_for(0, cur.size(), [&](size_t i) {
-//      GA.get_vertex(cur[i]).out_neighbors().map(map_f);
-//      cur[i] = rctree[cur[i]].parent;
-//    });
-//    // std::cout << "check22" << std::endl;
-//    auto hist = parlay::histogram_by_key(cur);
-//    // std::cout << "check221 " << hist.size() <<  std::endl;
-//    parallel_for(0, hist.size(),
-//                 [&](size_t i) { deg[hist[i].first] -= hist[i].second; });
-//    // std::cout << "check23" << std::endl;
-//    round++;
-//    rem -= cur.size();
-//  }
-//  t.next("RC Tree Time");
-
   // Step 2: Compute bucket_id for each edge
+  parallel_for(0, n, [&](size_t i){
+    if (rctree[i].alt != UINT_E_MAX){
+      auto alt = rctree[i].alt;
+      if (rctree[alt].round < rctree[i].round){
+        rctree[i].parent = alt;
+      }
+    }
+  });
   auto bkt_ids = sequence<std::pair<size_t, size_t>>::uninitialized(m);
-  parallel_for(0, m, [&](size_t i) {
-    auto cur = edge2rcnode[i];
-    auto wgh = rctree[cur].wgh;
-    cur = rctree[cur].parent;
-    while (rctree[cur].parent != cur && rctree[cur].wgh < wgh) {
+  parallel_for(0, n, [&](size_t i) {
+    auto edge_index = rctree[i].edge_index;
+    auto wgh = std::make_pair(rctree[i].wgh, edge_index);
+    auto cur = rctree[i].parent;
+    while (rctree[cur].parent != cur && std::make_pair(rctree[cur].wgh,rctree[cur].edge_index) < wgh) {
       cur = rctree[cur].parent;
     }
-    bkt_ids[i] = {rctree[cur].edge_index, i};
+    bkt_ids[edge_index] = {rctree[cur].edge_index, edge_index};
   });
   t.next("Bucket Computation Time");
 
@@ -187,6 +299,7 @@ double DendrogramRCtreeTracing(Graph& GA) {
     }
   });
   t.next("Bucket Sorting and Finish Time");
+
   double tt = t.total_time();
   // for (size_t i=0; i<m; i++){
   //     std::cout << parent[i] << " ";

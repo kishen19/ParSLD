@@ -44,7 +44,7 @@ class concurrent_table {
     mask = m - 1;
     backing = sequence<T>::uninitialized(m);
     table = make_slice(backing);
-    std::cout << "Table size = " << m << std::endl;
+    // std::cout << "Table size = " << m << std::endl;
     clear_table();
   }
 
@@ -68,6 +68,33 @@ class concurrent_table {
     while (true) {
       if (std::get<0>(table[h]) == empty_key) {
         if (gbbs::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key,
+                                          k)) {
+          std::get<1>(table[h]) = std::get<1>(kv);
+          return true;
+        }
+      }
+      if (std::get<0>(table[h]) == k) {
+        return false;
+      }
+      h = incrementIndex(h);
+    }
+    return false;
+  }
+
+  // When deletions are allowed
+  bool insert(std::tuple<K, V> kv, K tombstone) {
+    K k = std::get<0>(kv);
+    size_t h = firstIndex(k);
+    while (true) {
+      if (std::get<0>(table[h]) == empty_key) {
+        if (gbbs::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key,
+                                          k)) {
+          std::get<1>(table[h]) = std::get<1>(kv);
+          return true;
+        }
+      }
+      else if (std::get<0>(table[h]) == tombstone){
+        if (gbbs::atomic_compare_and_swap(&std::get<0>(table[h]), tombstone,
                                           k)) {
           std::get<1>(table[h]) = std::get<1>(kv);
           return true;
@@ -107,9 +134,30 @@ class concurrent_table {
     }
   }
 
+  // requires key to be INT type, allows for -1 operation
+  void remove(K k) const {
+    size_t h = firstIndex(k);
+    while (true) {
+      if (std::get<0>(table[h]) == empty_key) {
+        return;
+      } else if (std::get<0>(table[h]) == k) {
+        std::get<0>(table[h]) = empty_key - 1; // tombstone
+        return;
+      }
+      h = incrementIndex(h);
+    }
+  }
+
   sequence<T> entries() const {
     auto pred = [&](const T& t) {
       return std::get<0>(t) != empty_key;
+    };
+    return parlay::filter(table, pred);
+  }
+
+  sequence<T> entries(K tombstone) const {
+    auto pred = [&](const T& t) {
+      return (std::get<0>(t) != empty_key) && (std::get<0>(t) != tombstone);
     };
     return parlay::filter(table, pred);
   }
