@@ -8,6 +8,14 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "BuildPath",
+    srcs = ["path.cc"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
 package(
     default_visibility = ["//visibility:public"],
 )
