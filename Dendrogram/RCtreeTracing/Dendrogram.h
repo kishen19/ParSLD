@@ -46,7 +46,6 @@ double DendrogramRCtreeTracing(Graph& GA) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
   });
   parlay::sort_inplace(edges);
-  t.next("check 0");
   // hash table for edge -> indices
   //    needs to store ~n entries.
   auto emptyS = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), m);
@@ -55,7 +54,6 @@ double DendrogramRCtreeTracing(Graph& GA) {
     auto key_value = std::make_tuple(edges[2 * i], i);
     S.insert(key_value);
   });
-  t.next("check 1");
   // Create Adjacency List: Dynamic, maintained using list of hash tables
   auto W_MAX = std::numeric_limits<W>::max();
   auto emptyAdj = std::make_tuple(UINT_E_MAX, std::make_pair(W_MAX, m));
@@ -65,7 +63,6 @@ double DendrogramRCtreeTracing(Graph& GA) {
     auto key_value = std::make_tuple(dst, std::make_pair(wgh, index));
     adj[src].insert(key_value);
   };
-  t.next("check2");
   parallel_for(0, n, [&](uintE i){
     adj[i] = make_concurrent_table<KA, VA>(deg[i], emptyAdj, 1.05);
     GA.get_vertex(i).out_neighbors().map(adj_f);
@@ -301,10 +298,10 @@ double DendrogramRCtreeTracing(Graph& GA) {
   t.next("Bucket Sorting and Finish Time");
 
   double tt = t.total_time();
-  for (size_t i=0; i<m; i++){
-      std::cout << parent[i] << " ";
-  }
-  std::cout << std::endl;
+  // for (size_t i=0; i<m; i++){
+  //     std::cout << parent[i] << " ";
+  // }
+  // std::cout << std::endl;
   return tt;
 }
 
