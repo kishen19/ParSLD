@@ -15,21 +15,21 @@ namespace {
 
 template <class Graph>
 double Dendrogram_runner(Graph& G, commandLine P) {
-	std::cout << "### Application: Dendrogram Construction" << std::endl;
-	std::cout << "### Graph: " << P.getArgument(0) << std::endl;
-	std::cout << "### Threads: " << num_workers() << std::endl;
-	std::cout << "### n: " << G.n << std::endl;
-	std::cout << "### m: " << G.m << std::endl;
-	std::cout << "### ------------------------------------" << std::endl;
-	assert(P.getOption("-s"));
+  std::cout << "### Application: Dendrogram Construction" << std::endl;
+  std::cout << "### Graph: " << P.getArgument(0) << std::endl;
+  std::cout << "### Threads: " << num_workers() << std::endl;
+  std::cout << "### n: " << G.n << std::endl;
+  std::cout << "### m: " << G.m << std::endl;
+  std::cout << "### ------------------------------------" << std::endl;
+  assert(P.getOption("-s"));
 
-	double tt = DendrogramRCtreeTracing(G);
+  double tt = DendrogramRCtreeTracing(G);
 
-	std::cout << "### Running Time: " << tt << std::endl;
-	return tt;
+  std::cout << "### Running Time: " << tt << std::endl;
+  return tt;
 }
 
-}  // namespace
-}  // namespace gbbs
+}   // namespace
+}   // namespace gbbs
 
 generate_symmetric_weighted_main(gbbs::Dendrogram_runner, true);

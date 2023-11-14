@@ -2,8 +2,8 @@
 
 // A hash-table implementation of RC-tree construction
 
-#include "gbbs/gbbs.h"
 #include "concurrent_table.h"
+#include "gbbs/gbbs.h"
 #include "rctree_utils.h"
 
 namespace gbbs {
@@ -245,4 +245,4 @@ auto build_rctree_ht(Graph& GA) {
   return rctree;
 }
 
-}  // namespace gbbs
+}   // namespace gbbs

@@ -4,8 +4,8 @@
 #include "gbbs/gbbs.h"
 #include "gbbs/julienne.h"
 
-#include "rctree_utils.h"
 #include "rctree_hashtable.h"
+#include "rctree_utils.h"
 
 namespace gbbs {
 

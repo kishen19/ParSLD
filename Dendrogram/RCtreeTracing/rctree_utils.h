@@ -15,4 +15,4 @@ struct RCtree_node {
   weight_type wgh;            // the weight of this edge.
 };
 
-}  // namespace gbbs
+}   // namespace gbbs
