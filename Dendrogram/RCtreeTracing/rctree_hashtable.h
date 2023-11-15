@@ -68,7 +68,10 @@ auto build_rctree_ht(Graph& GA) {
     rctree[i].edge_index = m + i;
   });
   parlay::random r(42);
-  auto tosses = sequence<bool>(n, 0);
+  auto priorities = sequence<uint64_t>::from_function(n, [&](size_t i){
+    return r.ith_rand(i);
+  });
+  // r = r.next();
   size_t rem = m, round = 0;
 
   // Implements the rake operation.
@@ -98,14 +101,12 @@ auto build_rctree_ht(Graph& GA) {
   // // Implements the compress operation.
   //    Merge into the cluster with min-weight edge
   auto compress_f1 = [&](const uintE& src) {
-    if (tosses[src]) {
-      auto entries = adj[src].entries(UINT_E_MAX - 1);
-      auto dst1 = std::get<0>(entries[0]);
-      auto dst2 = std::get<0>(entries[1]);
-      if (!tosses[dst1] && !tosses[dst2]) {
-        deg[src] -= 2;
-        rctree[src].round = round;
-      }
+    auto entries = adj[src].entries(UINT_E_MAX - 1);
+    auto dst1 = std::get<0>(entries[0]);
+    auto dst2 = std::get<0>(entries[1]);
+    if (priorities[src] > priorities[dst1] && priorities[src] > priorities[dst2]) {
+      deg[src] -= 2;
+      rctree[src].round = round;
     }
   };
 
@@ -113,8 +114,8 @@ auto build_rctree_ht(Graph& GA) {
   //    Merge into the cluster with min-weight edge
   auto compress_f2 = [&](const uintE& src) {
     // Restore Coin Toss values
-    tosses[src] = 0;
-    if (rctree[src].round != SIZE_T_MAX) {
+    // tosses[src] = 0;
+    if (rctree[src].round != UINT_E_MAX) {
       auto entries = adj[src].entries(UINT_E_MAX - 1);
       auto dst1 = std::get<0>(entries[0]);
       auto dst2 = std::get<0>(entries[1]);
@@ -123,17 +124,15 @@ auto build_rctree_ht(Graph& GA) {
     }
   };
   auto compress_f3 = [&](const uintE& src) {
-    if (rctree[src].round != SIZE_T_MAX) {
+    if (rctree[src].round != UINT_E_MAX) {
       auto entries = adj[src].entries(UINT_E_MAX - 1);
       auto dst1 = std::get<0>(entries[0]);
       auto dst2 = std::get<0>(entries[1]);
 
       auto edge_index1 = std::get<1>(entries[0]).second;
       auto wgh1 = std::get<1>(entries[0]).first;
-      // auto wgh1 = std::make_pair(std::get<1>(entries[0]).first, edge_index1);
       auto edge_index2 = std::get<1>(entries[1]).second;
       auto wgh2 = std::get<1>(entries[1]).first;
-      // auto wgh2 = std::make_pair(std::get<1>(entries[1]).first, edge_index2);
       if (std::make_pair(wgh1, edge_index1) <
           std::make_pair(wgh2, edge_index2)) {
         rctree[src].edge_index = edge_index1;
@@ -177,13 +176,6 @@ auto build_rctree_ht(Graph& GA) {
 
     // Compress
     if (degree_two.size() > 0) {
-      // Coin Toss for Independent Set computation
-      parallel_for(0, degree_two.size(), [&](size_t i) {
-        auto r_value = r.ith_rand(i);
-        tosses[degree_two[i]] = (r_value % 2);
-      });
-      r = r.next();
-
       // Apply compress
       parallel_for(0, degree_two.size(),
                    [&](size_t i) { compress_f1(degree_two[i]); });
@@ -195,7 +187,7 @@ auto build_rctree_ht(Graph& GA) {
                    [&](size_t i) { compress_f3(degree_two[i]); });
     }
     rem -= parlay::count_if(
-       degree_two, [&](size_t id) { return rctree[id].round != SIZE_T_MAX; });
+       degree_two, [&](size_t id) { return rctree[id].round != UINT_E_MAX; });
     round++;
 
     // Rake
