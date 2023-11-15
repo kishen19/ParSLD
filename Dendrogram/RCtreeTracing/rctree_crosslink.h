@@ -23,21 +23,15 @@ auto build_rctree_crosslink(Graph& GA) {
   auto m = GA.m / 2;
 
   // Stores the degrees as nodes are peeled.
-  auto deg = sequence<size_t>::from_function(
-     n, [&](size_t u) { return GA.get_vertex(u).out_degree(); });
+  auto deg = sequence<uintE>::from_function(
+     n, [&](uintE u) { return GA.get_vertex(u).out_degree(); });
   auto edges = sequence<std::tuple<uintE, uintE, uintE, W>>::uninitialized(2 * m);
-
-//  auto triples =
-//     sequence<std::tuple<uintE, uintE, uintE>>::uninitialized(2 * m);
 
   auto offsets = parlay::scan(deg).first;
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
-                      const size_t& ind) {
+                      const uintE& ind) {
     edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind, wgh};
     // ngh's offset in src is ind.
-
-//    // {v, u, ind}, sort-by v
-//    triples[offsets[src] + ind] = {dst, src, ind};
   };
   parallel_for(0, n, [&](uintE u) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
@@ -52,20 +46,6 @@ auto build_rctree_crosslink(Graph& GA) {
     return std::make_pair(std::min(x, y), std::max(x, y));
   };
 
-//  // hash table for edge -> indices and weight.
-//  //    needs to store ~n entries.
-//  auto emptyS = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX),
-//                                std::make_pair(m, W()));
-//  auto S = make_concurrent_table<K, V>(m, emptyS, 1.5);
-//  parallel_for(0, m, [&](size_t i) {
-//    std::pair<uintE, uintE> key = {std::get<0>(edges[2 * i]),
-//                                   std::get<1>(edges[2 * i])};
-//    std::pair<uintE, W> val = {i, std::get<2>(edges[2 * i])};
-//    auto key_value = std::make_tuple(key, val);
-//    S.insert(key_value);
-//  });
-//  t.next("Search in hash table");
-
   using edge_info = std::tuple<uintE, uintE, uintE, W>;
 
   // Neighbors of vertex i at offsets[i] -- offsets[i+1]:
@@ -76,10 +56,7 @@ auto build_rctree_crosslink(Graph& GA) {
   // - weight of the edge (redundant, but saves a cache miss)
   auto neighbors = parlay::sequence<edge_info>::uninitialized(2*m);
 
-  parlay::parallel_for(0, m, [&](size_t i) {
-//       auto [edge_index, wgh] =
-//          S.find(get_key(std::get<0>(triples[i]), std::get<1>(triples[i])));
-
+  parlay::parallel_for(0, m, [&](uintE i) {
        auto [u, v, ind1, wgh1] = edges[2*i];
        auto [_u, _v, ind2, wgh2] = edges[2*i+1];
 
@@ -93,26 +70,22 @@ auto build_rctree_crosslink(Graph& GA) {
   });
   t.next("Build neighbors");
 
-  // TODO: Possible to S.del now
-
-  // {src, dst} in lex order?
-
   // Step 1: Compute RC Tree
   auto rctree = sequence<RCtree_node<W>>(n);
 
   // The rc-tree node where this edge was contracted / merged. This
   // is used in the query-path when we traverse up the RC tree for an
   // edge.
-  parallel_for(0, n, [&](size_t i) {
+  parallel_for(0, n, [&](uintE i) {
     rctree[i].parent = i;
     // to ensure unique buckets, even if the input tree is disconnected
     rctree[i].edge_index = m + i;
   });
   parlay::random r(42);
   auto priorities = sequence<uint64_t>::from_function(
-     n, [&](size_t i) { return r.ith_rand(i); });
+     n, [&](uintE i) { return r.ith_rand(i); });
   // r = r.next();
-  size_t rem = m, round = 0;
+  uintE rem = m, round = 0;
 
   // Implements the rake operation.
   // If deg 1 cluster merges into a deg>1 cluster:
@@ -120,10 +93,10 @@ auto build_rctree_crosslink(Graph& GA) {
   //
 
   auto get_neighbor = [&](uintE src) -> edge_info {
-    size_t offset = offsets[src];
-    size_t deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
+    uintE offset = offsets[src];
+    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
 
-    for (size_t i = 0; i < deg; ++i) {
+    for (uintE i = 0; i < deg; ++i) {
       if (std::get<0>(neighbors[offset + i]) != UINT_E_MAX) {
         return neighbors[offset + i];
       }
@@ -135,11 +108,11 @@ auto build_rctree_crosslink(Graph& GA) {
   };
 
   auto get_both_neighbors = [&](uintE src) -> std::vector<edge_info> {
-    size_t offset = offsets[src];
-    size_t deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
+    uintE offset = offsets[src];
+    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
     std::vector<edge_info> ret;
 
-    for (size_t i = 0; i < deg; ++i) {
+    for (uintE i = 0; i < deg; ++i) {
       if (std::get<0>(neighbors[offset + i]) != UINT_E_MAX) {
         ret.push_back(neighbors[offset + i]);
       }
@@ -243,10 +216,12 @@ auto build_rctree_crosslink(Graph& GA) {
 
   std::cout << "Done preprocessing" << std::endl;
   t.next("Preprocess");
+
+  auto delayed_n = parlay::delayed_seq<uintE>(n, [&] (uintE i) { return i; });
   auto degree_one =
-     parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 1; });
+     parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
   auto degree_two =
-     parlay::filter(parlay::iota(n), [&](size_t i) { return deg[i] == 2; });
+     parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 2; });
   while (rem > 0) {
     // Note that we need both the degree 1 and degree 2 buckets.
     // Only two buckets we care about: {1, 2, everything_else}
@@ -265,52 +240,52 @@ auto build_rctree_crosslink(Graph& GA) {
     if (degree_two.size() > 0) {
       // Adds new edges
       parallel_for(0, degree_two.size(),
-                  [&](size_t i) { compress(degree_two[i]); });
+                  [&](uintE i) { compress(degree_two[i]); });
       // sync, then finish_compress.
       parallel_for(0, degree_two.size(),
-                  [&](size_t i) { finish_compress(degree_two[i]); });
+                  [&](uintE i) { finish_compress(degree_two[i]); });
     }
     rem -= parlay::count_if(
-       degree_two, [&](size_t id) { return rctree[id].round != UINT_E_MAX; });
+       degree_two, [&](uintE id) { return rctree[id].round != UINT_E_MAX; });
     round++;
     std::cout << "Finished compress" << std::endl;
 
     // Rake
-    parallel_for(0, degree_one.size(), [&](size_t i) {
+    parallel_for(0, degree_one.size(), [&](uintE i) {
       auto outp = rake_f(degree_one[i]);
       degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
     parlay::sort_inplace(parlay::make_slice(degree_one));
-    auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](size_t i) {
+    auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](uintE i) {
       return (i == 0) || (degree_one[i] != degree_one[i - 1]);
     });
     auto indices = parlay::pack_index(flags);
 
     rem -= degree_one.size();
-    parlay::parallel_for(0, indices.size(), [&](size_t i) {
+    parlay::parallel_for(0, indices.size(), [&](uintE i) {
       auto start = indices[i];
       auto end = (i == indices.size() - 1) ? degree_one.size() : indices[i + 1];
-      size_t dst = degree_one[start];
-      size_t degree_lost = end - start;
+      uintE dst = degree_one[start];
+      uintE degree_lost = end - start;
       if (dst < n) {
         deg[dst] -= degree_lost;
       } else {
         rem += degree_lost;
       }
     });
-    auto unique_keys = parlay::delayed_seq<size_t>(
+    auto unique_keys = parlay::delayed_seq<uintE>(
        indices.size(),
-       [&](size_t i) { return (indices[i] < n) ? degree_one[indices[i]] : n; });
+       [&](uintE i) { return (indices[i] < n) ? degree_one[indices[i]] : n; });
     auto new_degree_one = parlay::filter(
-       unique_keys, [&](size_t id) { return (id < n) ? deg[id] == 1 : false; });
-    auto new_degree_two = parlay::filter(unique_keys, [&](size_t id) {
+       unique_keys, [&](uintE id) { return (id < n) ? deg[id] == 1 : false; });
+    auto new_degree_two = parlay::filter(unique_keys, [&](uintE id) {
       return (id < n) ? deg[id] == 2 : false;
       ;
     });
     degree_one = std::move(new_degree_one);
 
     auto rem_degree_two =
-       parlay::filter(degree_two, [&](size_t id) { return deg[id] == 2; });
+       parlay::filter(degree_two, [&](uintE id) { return deg[id] == 2; });
     auto combined_degree_two = parlay::append(rem_degree_two, new_degree_two);
     degree_two = std::move(combined_degree_two);
     round++;

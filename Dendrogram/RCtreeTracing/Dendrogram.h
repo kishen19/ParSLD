@@ -31,7 +31,7 @@ double DendrogramRCtreeTracing(Graph& GA) {
 
       // Step 2: Compute bucket_id for each edge
   parallel_for(0, n, [&](size_t i) {
-    if (rctree[i].alt != SIZE_T_MAX) {
+    if (rctree[i].alt != UINT_E_MAX) {
       auto alt = rctree[i].alt;
       if (rctree[alt].round < rctree[i].round) {
         rctree[i].parent = alt;
