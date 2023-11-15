@@ -25,12 +25,12 @@ auto build_rctree_crosslink(Graph& GA) {
   // Stores the degrees as nodes are peeled.
   auto deg = sequence<uintE>::from_function(
      n, [&](uintE u) { return GA.get_vertex(u).out_degree(); });
-  auto edges = sequence<std::tuple<uintE, uintE, uintE, W>>::uninitialized(2 * m);
+  auto edges = sequence<std::tuple<uintE, uintE, uintE>>::uninitialized(2 * m);
 
   auto offsets = parlay::scan(deg).first;
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
                       const uintE& ind) {
-    edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind, wgh};
+    edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind};
     // ngh's offset in src is ind.
   };
   parallel_for(0, n, [&](uintE u) {
@@ -57,21 +57,23 @@ auto build_rctree_crosslink(Graph& GA) {
   auto neighbors = parlay::sequence<edge_info>::uninitialized(2*m);
 
   parlay::parallel_for(0, m, [&](uintE i) {
-       auto [u, v, ind1, wgh1] = edges[2*i];
-       auto [_u, _v, ind2, wgh2] = edges[2*i+1];
+       auto [u, v, ind1] = edges[2*i];
+       auto [_u, _v, ind2] = edges[2*i+1];
+
+       auto [_, wgh] = GA.get_vertex(u).out_neighbors().get_ith_neighbor(ind1-offsets[u]);
 
        // smaller of the two inds corresponds to the smaller vertex
        // id.
 
        // G.get_vertex(u).get_ith_neighbor(ind1)
 
-       neighbors[ind1] = {v, ind2-offsets[v], i, wgh1};
-       neighbors[ind2] = {u, ind1-offsets[u], i, wgh1};
+       neighbors[ind1] = {v, ind2-offsets[v], i, wgh};
+       neighbors[ind2] = {u, ind1-offsets[u], i, wgh};
   });
   t.next("Build neighbors");
 
   // Step 1: Compute RC Tree
-  auto rctree = sequence<RCtree_node<W>>(n);
+  auto rctree = parlay::sequence<RCtree_node<W>>::uninitialized(n);
 
   // The rc-tree node where this edge was contracted / merged. This
   // is used in the query-path when we traverse up the RC tree for an
@@ -80,12 +82,23 @@ auto build_rctree_crosslink(Graph& GA) {
     rctree[i].parent = i;
     // to ensure unique buckets, even if the input tree is disconnected
     rctree[i].edge_index = m + i;
+    rctree[i].alt = UINT_E_MAX;
+    rctree[i].round = UINT_E_MAX;
   });
-  parlay::random r(42);
-  auto priorities = sequence<uint64_t>::from_function(
-     n, [&](uintE i) { return r.ith_rand(i); });
-  // r = r.next();
+
+//  parlay::random r(42);
+//  auto priorities = sequence<uint64_t>::from_function(
+//     n, [&](uintE i) { return r.ith_rand(i); });
+//  // r = r.next();
+//  uintE rem = m, round = 0;
+
+  auto priorities = sequence<uint32_t>::from_function(
+     n, [&](uintE i) { return parlay::hash32_3(i); });
   uintE rem = m, round = 0;
+
+
+  std::cout << "Done preprocessing" << std::endl;
+  t.next("Preprocess");
 
   // Implements the rake operation.
   // If deg 1 cluster merges into a deg>1 cluster:
@@ -214,9 +227,6 @@ auto build_rctree_crosslink(Graph& GA) {
     }
   };
 
-  std::cout << "Done preprocessing" << std::endl;
-  t.next("Preprocess");
-
   auto delayed_n = parlay::delayed_seq<uintE>(n, [&] (uintE i) { return i; });
   auto degree_one =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
@@ -233,8 +243,8 @@ auto build_rctree_crosslink(Graph& GA) {
     // (b) histogram the ids (do this using semisort / sort)
     // (c) update the degrees, and filter out those that become degree 1 / 2
 
-    std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
-    std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
+    // std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
+    // std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
 
     // Compress
     if (degree_two.size() > 0) {
@@ -248,7 +258,6 @@ auto build_rctree_crosslink(Graph& GA) {
     rem -= parlay::count_if(
        degree_two, [&](uintE id) { return rctree[id].round != UINT_E_MAX; });
     round++;
-    std::cout << "Finished compress" << std::endl;
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
