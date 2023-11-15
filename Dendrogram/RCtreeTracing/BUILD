@@ -4,6 +4,7 @@ cc_library(
     name = "Dendrogram",
     hdrs = ["Dendrogram.h"],
     deps = [
+        ":rctree_crosslink",
         ":rctree_hashtable",
         ":rctree_utils",
         "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
@@ -31,6 +32,16 @@ cc_library(
 cc_library(
     name = "rctree_hashtable",
     hdrs = ["rctree_hashtable.h"],
+    deps = [
+        ":concurrent_table",
+        ":rctree_utils",
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
+    name = "rctree_crosslink",
+    hdrs = ["rctree_crosslink.h"],
     deps = [
         ":concurrent_table",
         ":rctree_utils",

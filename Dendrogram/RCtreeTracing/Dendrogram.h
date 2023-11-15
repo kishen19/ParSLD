@@ -5,6 +5,7 @@
 #include "gbbs/julienne.h"
 
 #include "rctree_hashtable.h"
+#include "rctree_crosslink.h"
 #include "rctree_utils.h"
 
 namespace gbbs {
@@ -24,9 +25,11 @@ double DendrogramRCtreeTracing(Graph& GA) {
   auto n = GA.n;
   auto m = GA.m / 2;
 
-  auto rctree = build_rctree_ht(GA);
+  //auto rctree = build_rctree_ht(GA);
+  auto rctree = build_rctree_crosslink(GA);
+  t.next("Build RCTree Time");
 
-  // Step 2: Compute bucket_id for each edge
+      // Step 2: Compute bucket_id for each edge
   parallel_for(0, n, [&](size_t i) {
     if (rctree[i].alt != SIZE_T_MAX) {
       auto alt = rctree[i].alt;
@@ -66,10 +69,10 @@ double DendrogramRCtreeTracing(Graph& GA) {
   t.next("Bucket Sorting and Finish Time");
 
   double tt = t.total_time();
-  // for (size_t i=0; i<m; i++){
-  //     std::cout << parent[i] << " ";
-  // }
-  // std::cout << std::endl;
+//  for (size_t i=0; i<m; i++){
+//      std::cout << parent[i] << " ";
+//  }
+//  std::cout << std::endl;
   return tt;
 }
 

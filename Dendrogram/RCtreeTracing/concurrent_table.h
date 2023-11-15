@@ -44,7 +44,7 @@ class concurrent_table {
     mask = m - 1;
     backing = sequence<T>::uninitialized(m);
     table = make_slice(backing);
-    // std::cout << "Table size = " << m << std::endl;
+    std::cout << "Table size = " << m << std::endl;
     clear_table();
   }
 
