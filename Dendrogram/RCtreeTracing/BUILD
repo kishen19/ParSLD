@@ -4,6 +4,7 @@ cc_library(
     name = "Dendrogram",
     hdrs = ["Dendrogram.h"],
     deps = [
+        ":rctree_async",
         ":rctree_crosslink",
         ":rctree_hashtable",
         ":rctree_utils",
@@ -42,6 +43,16 @@ cc_library(
 cc_library(
     name = "rctree_crosslink",
     hdrs = ["rctree_crosslink.h"],
+    deps = [
+        ":concurrent_table",
+        ":rctree_utils",
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
+    name = "rctree_async",
+    hdrs = ["rctree_async.h"],
     deps = [
         ":concurrent_table",
         ":rctree_utils",

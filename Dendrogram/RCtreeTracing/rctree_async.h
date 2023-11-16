@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-auto build_rctree_crosslink(Graph& GA) {
+auto build_rctree_async(Graph& GA) {
   using W = typename Graph::weight_type;
 
   timer t;
@@ -32,9 +32,6 @@ auto build_rctree_crosslink(Graph& GA) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
   });
   parlay::sort_inplace(edges);
-
-  // Sort the triples, then drop the first endpoint (project to pairs).
-  // parlay::sort_inplace(triples);
   t.next("Sort edges");
 
   auto get_key = [](uintE x, uintE y) {
@@ -42,7 +39,6 @@ auto build_rctree_crosslink(Graph& GA) {
   };
 
   using edge_info = std::tuple<uintE, uintE, uintE, W>;
-
   // Neighbors of vertex i at offsets[i] -- offsets[i+1]:
   // We store:
   // - neighbor_id
@@ -54,14 +50,11 @@ auto build_rctree_crosslink(Graph& GA) {
   parlay::parallel_for(0, m, [&](uintE i) {
        auto [u, v, ind1] = edges[2*i];
        auto [_u, _v, ind2] = edges[2*i+1];
-       
-       auto [_, wgh] = GA.get_vertex(u).out_neighbors().get_ith_neighbor(ind1-offsets[u]);
 
+       auto [_, wgh] = GA.get_vertex(u).out_neighbors().get_ith_neighbor(ind1-offsets[u]);
        // smaller of the two inds corresponds to the smaller vertex
        // id.
-
        // G.get_vertex(u).get_ith_neighbor(ind1)
-
        neighbors[ind1] = {v, ind2-offsets[v], i, wgh};
        neighbors[ind2] = {u, ind1-offsets[u], i, wgh};
   });
@@ -69,7 +62,6 @@ auto build_rctree_crosslink(Graph& GA) {
 
   // Step 1: Compute RC Tree
   auto rctree = parlay::sequence<RCtree_node<W>>::uninitialized(n);
-
   // The rc-tree node where this edge was contracted / merged. This
   // is used in the query-path when we traverse up the RC tree for an
   // edge.
@@ -78,24 +70,19 @@ auto build_rctree_crosslink(Graph& GA) {
     // to ensure unique buckets, even if the input tree is disconnected
     rctree[i].edge_index = m + i;
     rctree[i].alt = UINT_E_MAX;
-    rctree[i].round = UINT_E_MAX;
+    rctree[i].round = 0;
+    rctree[i].is_ready = 0;
   });
 
   parlay::random r(42);
   auto priorities = sequence<uint64_t>::from_function(
      n, [&](uintE i) { return r.ith_rand(i); });
-  uintE round = 0;
 
 //  auto priorities = sequence<uint32_t>::from_function(
 //     n, [&](uintE i) { return parlay::hash32_3(i); });
-//  uintE rem = m, round = 0;
 
   t.next("Preprocess (initialize RCTree Nodes and Priorities");
-
-  // Implements the rake operation.
-  // If deg 1 cluster merges into a deg>1 cluster:
-  //    simply merge and unite the clusters
-  //
+  uintE round = 0;
 
   auto get_neighbor = [&](uintE src) -> edge_info {
     uintE offset = offsets[src];
@@ -126,17 +113,14 @@ auto build_rctree_crosslink(Graph& GA) {
     return ret;
   };
 
+  // Implements the rake operation.
   auto rake_f = [&](uintE src) -> bool {
-    // auto entries = neighbors[src].entries(UINT_E_MAX - 1);
-
     // We know that src has degree 1. We just need to get its neighbor
     // now by scanning neighbors[offsets[src]].
-
     auto [dst, index_in_dst, edge_index, wgh] = get_neighbor(src);
 
     // Need to symmetry break two degree-1 nodes here.
     if (deg[dst] > 1 || (deg[dst] == 1 && src < dst)) {
-
       deg[src]--;
       rctree[src].parent = dst;
       rctree[src].round = round;
@@ -165,9 +149,10 @@ auto build_rctree_crosslink(Graph& GA) {
     auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
     // Check whether we want to compress this node.
-    if (priorities[src] > priorities[dst1] &&
-        priorities[src] > priorities[dst2]) {
-      deg[src] -= 2;
+    rctree[src].is_ready = ((priorities[src] > priorities[dst1])?1:0) +
+        ((priorities[src] > priorities[dst2])?1:0);
+    if (rctree[src].is_ready == 2) {
+      // deg[src] -= 2;
       rctree[src].round = round;
     }
   };
@@ -175,22 +160,24 @@ auto build_rctree_crosslink(Graph& GA) {
   // We separate compress and finish_compress here to avoid a
   // race-condition (since src and dst1 could both have compress
   // called on them, e.g., in a path).
-  auto finish_compress = [&](uintE src) {
-    if (rctree[src].round != UINT_E_MAX) {
-
+  auto finish_compress = [&](uintE src) -> uintE {
+    auto cur = src;
+    uintE cur_round = round;
+    while (gbbs::atomic_compare_and_swap(&rctree[cur].is_ready, 2, 3)){
       auto our_neighbors = get_both_neighbors(src);
       if (our_neighbors.size() != 2) {
         std::cerr << "Bad compress" << std::endl;
         assert(false);
         exit(-1);
       }
+      deg[cur] -= 2;
+      cur_round = rctree[cur].round;
       auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
       // Any order here is fine, since we post-process and check both.
       rctree[src].parent = dst1;
       rctree[src].alt = dst2;
-
       // Check which edge is smaller; break ties using the indices.
       if (std::make_pair(wgh1, edge_index1) <
           std::make_pair(wgh2, edge_index2)) {
@@ -198,7 +185,6 @@ auto build_rctree_crosslink(Graph& GA) {
         // TODO(): combine the cases into one by std::swap?
         rctree[src].edge_index = edge_index1;
         rctree[src].wgh = wgh1;
-
         // Now, update neighbors for dst1 and dst2 to cross-link with
         // each other.
         neighbors[offsets[dst1] + index_in_dst1] = {dst2, index_in_dst2,
@@ -208,7 +194,6 @@ auto build_rctree_crosslink(Graph& GA) {
       } else {
         rctree[src].edge_index = edge_index2;
         rctree[src].wgh = wgh2;
-
         // Now, update neighbors for dst1 and dst2 to cross-link with
         // each other.
         neighbors[offsets[dst1] + index_in_dst1] = {dst2, index_in_dst2,
@@ -216,9 +201,20 @@ auto build_rctree_crosslink(Graph& GA) {
         neighbors[offsets[dst2] + index_in_dst2] = {dst1, index_in_dst1,
                                                     edge_index1, wgh1};
       }
+      if ((priorities[dst1] > priorities[dst2]) && deg[dst1]==2) {
+        gbbs::write_add(&rctree[dst1].is_ready, 1);
+        gbbs::write_max(&rctree[dst1].round, cur_round+1);
+        cur = dst1;
+      } else if ((priorities[dst1] < priorities[dst2]) && deg[dst2]==2) {
+        gbbs::write_add(&rctree[dst2].is_ready, 1);
+        gbbs::write_max(&rctree[dst2].round, cur_round+1);
+        cur = dst2;
+      }
     }
+    return cur_round;
   };
 
+  auto get_max = [](auto a, auto b){ return std::max(a,b);};
   auto delayed_n = parlay::delayed_seq<uintE>(n, [&] (uintE i) { return i; });
   auto degree_one =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
@@ -228,29 +224,26 @@ auto build_rctree_crosslink(Graph& GA) {
   while (degree_one.size() > 0) {
     timer rt;
     rt.start();
-    // Note that we need both the degree 1 and degree 2 buckets.
-    // Only two buckets we care about: {1, 2, everything_else}
-    // Dense iterations do help us here...
-
     // (1) filtering out the initial frontier (degree 1 vertices)
     // Peel:
     // (a) emit the id of the neighbor / peeled (degree1) vertex
     // (b) histogram the ids (do this using semisort / sort)
     // (c) update the degrees, and filter out those that become degree 1 / 2
-
     std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
     std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
 
     // Compress
     if (degree_two.size() > 0) {
-      // Adds new edges
+      // Identify an indpendent set of degree 2 nodes to compress
       parallel_for(0, degree_two.size(),
                   [&](uintE i) { compress(degree_two[i]); });
-      // sync, then finish_compress.
+      // Async'ly compress the rest of the degree 2 nodes.
+      auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
       parallel_for(0, degree_two.size(),
-                  [&](uintE i) { finish_compress(degree_two[i]); });
+                  [&](uintE i) { out_rounds[i] = finish_compress(degree_two[i]); });
+      round += parlay::reduce_max(out_rounds);
     }
-    round++;
+    // round++;
     rt.next("Compress time");
 
     // Rake

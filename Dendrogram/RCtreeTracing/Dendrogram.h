@@ -6,6 +6,7 @@
 
 #include "rctree_hashtable.h"
 #include "rctree_crosslink.h"
+#include "rctree_async.h"
 #include "rctree_utils.h"
 
 namespace gbbs {
@@ -14,10 +15,6 @@ namespace gbbs {
 template <class Graph>
 double DendrogramRCtreeTracing(Graph& GA) {
   using W = typename Graph::weight_type;
-  using K = std::pair<uintE, uintE>;
-  using V = size_t;
-  using KA = uintE;
-  using VA = std::pair<W, size_t>;
 
   timer t;
   t.start();
@@ -26,7 +23,8 @@ double DendrogramRCtreeTracing(Graph& GA) {
   auto m = GA.m / 2;
 
   //auto rctree = build_rctree_ht(GA);
-  auto rctree = build_rctree_crosslink(GA);
+  // auto rctree = build_rctree_crosslink(GA);
+  auto rctree = build_rctree_async(GA);
   t.next("Build RCTree Time");
 
       // Step 2: Compute bucket_id for each edge
@@ -69,10 +67,10 @@ double DendrogramRCtreeTracing(Graph& GA) {
   t.next("Bucket Sorting and Finish Time");
 
   double tt = t.total_time();
-//  for (size_t i=0; i<m; i++){
-//      std::cout << parent[i] << " ";
-//  }
-//  std::cout << std::endl;
+ for (size_t i=0; i<m; i++){
+     std::cout << parent[i] << " ";
+ }
+ std::cout << std::endl;
   return tt;
 }
 
