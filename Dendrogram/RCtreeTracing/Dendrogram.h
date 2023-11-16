@@ -1,6 +1,5 @@
 #pragma once
 
-#include "benchmarks/Connectivity/SimpleUnionAsync/Connectivity.h"
 #include "gbbs/gbbs.h"
 #include "gbbs/julienne.h"
 

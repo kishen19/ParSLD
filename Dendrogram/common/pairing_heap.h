@@ -61,10 +61,11 @@ struct heap{
 
     heap() : root(nullptr), size(0){}
 
-    inline void init(key_type* A, size_t num){
-        root = heapify_linear(A, num);
-        size = num;
-        // root = heapify_dc(A, num);
+    template <class Seq>
+    inline void init(const Seq& A){
+        root = heapify_dc(A);
+        // root = heapify_linear(A, num);
+        size = A.size();
     }
     
     inline key_type get_min(){
@@ -118,9 +119,12 @@ struct heap{
         return k;
     }
 
-    node<key_type>* heapify_dc(key_type* A, size_t n){
+    template <class Seq>
+    node<key_type>* heapify_dc(const Seq& A){
+        size_t n = A.size();
         if (n == 0) {return nullptr;}
         else if (n <= 2048){
+            std::cout << "here" << std::endl;
             auto temp = node_allocator::create(A[0]);
             for (size_t i=1; i<n; i++){
                 auto new_node = node_allocator::create(A[i]);
@@ -130,31 +134,33 @@ struct heap{
         } else {
             node<key_type> *heap1, *heap2;
             parlay::par_do(
-                [&](){heap1 = heapify_dc(A, n/2);},
-                [&](){heap2 = heapify_dc(A + n/2, n - n/2);}
+                [&](){heap1 = heapify_dc(A.cut(0, n/2)); },
+                [&](){heap2 = heapify_dc(A.cut(n/2, n)); }
             );
             return meld(heap1, heap2);
         }
     }
 
-    node<key_type>* heapify_linear(key_type* A, size_t n){ // assuming sorted by (weights,ind)
-        if (n == 0) {return nullptr;}
-        else{
-            auto nodes = gbbs::sequence<node<key_type>*>::uninitialized(n);
-            parallel_for(0, n, 2048, [&](size_t i){
-                nodes[i] = node_allocator::create(A[i]);
-            });
-            parallel_for(0, n, 2048, [&](size_t i){
-                if (2*i+1 < n){
-                    nodes[i]->child = nodes[2*i+1];
-                }
-                if (2*i+2 < n){
-                    nodes[i]->child->sibling = nodes[2*i+2];
-                }
-            });
-            return nodes[0];
-        }
-    }
+    // template <class Seq>
+    // node<key_type>* heapify_linear(Seq& A){ // assuming sorted by (weights,ind)
+    //     size_t n = A.size();
+    //     if (n == 0) {return nullptr;}
+    //     else{
+    //         auto nodes = sequence<node<key_type>*>::uninitialized(n);
+    //         parallel_for(0, n, [&](size_t i){
+    //             nodes[i] = node_allocator::create(A[i]);
+    //         });
+    //         parallel_for(0, n, [&](size_t i){
+    //             if (2*i+1 < n){
+    //                 nodes[i]->child = nodes[2*i+1];
+    //             }
+    //             if (2*i+2 < n){
+    //                 nodes[i]->child->sibling = nodes[2*i+2];
+    //             }
+    //         });
+    //         return nodes[0];
+    //     }
+    // }
 };
 
 /////////// Block Pairing Heap

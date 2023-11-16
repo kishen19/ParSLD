@@ -7,9 +7,10 @@ cc_library(
         "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
         "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
         "@gbbs//gbbs",
-        "//Dendrogram/heaps:leftist_heap",
-        "//Dendrogram/heaps:skew_heap",
-        "//Dendrogram/heaps:pairing_heap",
+        "//Dendrogram/common:leftist_heap",
+        "//Dendrogram/common:skew_heap",
+        "//Dendrogram/common:pairing_heap",
+        # "//Dendrogram/common:union_find",
     ],
 )
 
@@ -17,12 +18,11 @@ cc_library(
     name = "DendSync",
     hdrs = ["DendSync.h"],
     deps = [
-        "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
-        "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
         "@gbbs//gbbs",
-        "//Dendrogram/heaps:leftist_heap",
-        "//Dendrogram/heaps:skew_heap",
-        "//Dendrogram/heaps:pairing_heap",
+        "//Dendrogram/common:leftist_heap",
+        "//Dendrogram/common:skew_heap",
+        "//Dendrogram/common:pairing_heap",
+        "//Dendrogram/common:union_find",
     ],
 )
 

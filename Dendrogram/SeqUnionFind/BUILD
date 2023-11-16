@@ -4,8 +4,7 @@ cc_library(
     name = "Dendrogram",
     hdrs = ["Dendrogram.h"],
     deps = [
-        "@gbbs//benchmarks/Connectivity/SimpleUnionAsync:Connectivity",
-        "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
+        "//Dendrogram/common:union_find",
         "@gbbs//gbbs",
     ],
 )

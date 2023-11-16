@@ -33,6 +33,14 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "union_find",
+    hdrs = ["union_find.h"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
 package(
     default_visibility = ["//visibility:public"],
 )

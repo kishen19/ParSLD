@@ -8,8 +8,8 @@
 //     -c : indicate that the graph is compressed
 //     -rounds : the number of times to run the algorithm
 
-#include "DendAsync.h"
-// #include "DendSync.h"
+// #include "DendAsync.h"
+#include "DendSync.h"
 
 namespace gbbs {
 namespace {
