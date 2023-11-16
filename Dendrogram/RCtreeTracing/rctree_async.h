@@ -139,6 +139,7 @@ auto build_rctree_async(Graph& GA) {
   // // Implements the compress operation.
   //    Merge into the cluster with min-weight edge
   auto compress = [&](const uintE& src) {
+    // Invariant: src has degree 2
     auto our_neighbors = get_both_neighbors(src);
     if (our_neighbors.size() != 2) {
       std::cerr << "Bad compress" << std::endl;
@@ -148,11 +149,13 @@ auto build_rctree_async(Graph& GA) {
     auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
     auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
-    // Check whether we want to compress this node.
+    // Check whether we want to compress this node (check neighbor
+    // priorities).
     rctree[src].is_ready = ((priorities[src] > priorities[dst1])?1:0) +
         ((priorities[src] > priorities[dst2])?1:0);
     if (rctree[src].is_ready == 2) {
       // deg[src] -= 2;
+      // Update the round; finish_compress will check round.
       rctree[src].round = round;
     }
   };
@@ -163,8 +166,8 @@ auto build_rctree_async(Graph& GA) {
   auto finish_compress = [&](uintE src) -> uintE {
     auto cur = src;
     uintE cur_round = round;
-    while (gbbs::atomic_compare_and_swap(&rctree[cur].is_ready, 2, 3)){
-      auto our_neighbors = get_both_neighbors(src);
+    while (gbbs::atomic_compare_and_swap(&rctree[cur].is_ready, 2, 3)) {
+      auto our_neighbors = get_both_neighbors(cur);
       if (our_neighbors.size() != 2) {
         std::cerr << "Bad compress" << std::endl;
         assert(false);
@@ -176,15 +179,15 @@ auto build_rctree_async(Graph& GA) {
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
       // Any order here is fine, since we post-process and check both.
-      rctree[src].parent = dst1;
-      rctree[src].alt = dst2;
+      rctree[cur].parent = dst1;
+      rctree[cur].alt = dst2;
       // Check which edge is smaller; break ties using the indices.
       if (std::make_pair(wgh1, edge_index1) <
           std::make_pair(wgh2, edge_index2)) {
         // The edge to 1 is smaller.
         // TODO(): combine the cases into one by std::swap?
-        rctree[src].edge_index = edge_index1;
-        rctree[src].wgh = wgh1;
+        rctree[cur].edge_index = edge_index1;
+        rctree[cur].wgh = wgh1;
         // Now, update neighbors for dst1 and dst2 to cross-link with
         // each other.
         neighbors[offsets[dst1] + index_in_dst1] = {dst2, index_in_dst2,
@@ -192,8 +195,8 @@ auto build_rctree_async(Graph& GA) {
         neighbors[offsets[dst2] + index_in_dst2] = {dst1, index_in_dst1,
                                                     edge_index2, wgh2};
       } else {
-        rctree[src].edge_index = edge_index2;
-        rctree[src].wgh = wgh2;
+        rctree[cur].edge_index = edge_index2;
+        rctree[cur].wgh = wgh2;
         // Now, update neighbors for dst1 and dst2 to cross-link with
         // each other.
         neighbors[offsets[dst1] + index_in_dst1] = {dst2, index_in_dst2,
@@ -201,6 +204,7 @@ auto build_rctree_async(Graph& GA) {
         neighbors[offsets[dst2] + index_in_dst2] = {dst1, index_in_dst1,
                                                     edge_index1, wgh1};
       }
+
       if ((priorities[dst1] > priorities[dst2]) && deg[dst1]==2) {
         gbbs::write_add(&rctree[dst1].is_ready, 1);
         gbbs::write_max(&rctree[dst1].round, cur_round+1);
@@ -241,7 +245,7 @@ auto build_rctree_async(Graph& GA) {
       auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
       parallel_for(0, degree_two.size(),
                   [&](uintE i) { out_rounds[i] = finish_compress(degree_two[i]); });
-      round += parlay::reduce_max(out_rounds);
+      round += parlay::reduce_max(out_rounds) + 1;
     }
     // round++;
     rt.next("Compress time");

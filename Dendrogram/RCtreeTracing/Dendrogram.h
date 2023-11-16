@@ -67,10 +67,10 @@ double DendrogramRCtreeTracing(Graph& GA) {
   t.next("Bucket Sorting and Finish Time");
 
   double tt = t.total_time();
- for (size_t i=0; i<m; i++){
-     std::cout << parent[i] << " ";
- }
- std::cout << std::endl;
+// for (size_t i=0; i<m; i++){
+//     std::cout << parent[i] << " ";
+// }
+// std::cout << std::endl;
   return tt;
 }
 
