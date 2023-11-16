@@ -151,8 +151,8 @@ auto build_rctree_async(Graph& GA) {
 
     // Check whether we want to compress this node (check neighbor
     // priorities).
-    rctree[src].parent = static_cast<uint16_t>(pri_greater(src, dst1)) + static_cast<uint16_t>(pri_greater(src, dst2));
-    if (rctree[src].parent == 2) {
+    rctree[src].parent = UINT_E_MAX - 3 + static_cast<uint16_t>(pri_greater(src, dst1)) + static_cast<uint16_t>(pri_greater(src, dst2));
+    if (rctree[src].parent == UINT_E_MAX - 1) {
       // deg[src] -= 2;
       // Update the round; finish_compress will check round.
       rctree[src].round = round;
@@ -165,7 +165,7 @@ auto build_rctree_async(Graph& GA) {
   auto finish_compress = [&](uintE src) -> uintE {
     auto cur = src;
     uintE cur_round = round;
-    while (gbbs::atomic_compare_and_swap(&rctree[cur].parent, (uintE)2, UINT_E_MAX)) {
+    while (gbbs::atomic_compare_and_swap(&rctree[cur].parent, UINT_E_MAX - 1, UINT_E_MAX)) {
       auto our_neighbors = get_both_neighbors(cur);
       if (our_neighbors.size() != 2) {
         std::cerr << "Bad compress" << std::endl;
@@ -176,6 +176,9 @@ auto build_rctree_async(Graph& GA) {
       cur_round = rctree[cur].round;
       auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
+
+      neighbors[offsets[cur]] = our_neighbors[0];
+      neighbors[offsets[cur] + 1] = our_neighbors[1];
 
       // Check which edge is smaller; break ties using the indices.
       if (std::make_pair(wgh1, edge_index1) <
@@ -204,10 +207,16 @@ auto build_rctree_async(Graph& GA) {
       if (pri_greater(dst1, dst2) && deg[dst1]==2) {
         gbbs::write_add(&rctree[dst1].parent, 1);
         gbbs::write_max(&rctree[dst1].round, cur_round+1);
+        // We know that dst1 will be compressed in this super-round,
+        // and it has higher priority than dst2, so dst1 will be our
+        // parent.
+        rctree[cur].parent = dst1;
         cur = dst1;
       } else if (pri_greater(dst2, dst1) && deg[dst2]==2) {
         gbbs::write_add(&rctree[dst2].parent, 1);
         gbbs::write_max(&rctree[dst2].round, cur_round+1);
+        // Ditto, in the other direction.
+        rctree[cur].parent = dst2;
         cur = dst2;
       }
     }

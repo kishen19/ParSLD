@@ -28,18 +28,16 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   auto [rctree, offsets, neighbors] = build_rctree_async(GA);
   t.next("Build RCTree Time");
 
-  // TODO: move to utils
-  auto get_both_neighbors = [&](uintE src) -> std::vector<edge_info> {
+  // Only need to scan two neighbors since we prepare this
+  // neighbor-list in finish_compress.
+  auto get_both_neighbors = [&](uintE src) -> std::vector<uintE> {
     uintE offset = offsets[src];
     uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
-    std::vector<edge_info> ret;
+    std::vector<uintE> ret;
 
-    for (uintE i = 0; i < deg; ++i) {
-      if (std::get<0>(neighbors[offset + i]) != UINT_E_MAX) {
-        ret.push_back(neighbors[offset + i]);
-      }
+    for (uintE i = 0; i < 2; ++i) {
+      ret.push_back(std::get<0>(neighbors[offset + i]));
     }
-    assert(ret.size() == 2);
     return ret;
   };
 
@@ -52,8 +50,8 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
         exit(-1);
       }
 
-      auto p1 = std::get<0>(neighbors[0]);
-      auto p2 = std::get<0>(neighbors[1]);
+      auto p1 = neighbors[0];
+      auto p2 = neighbors[1];
       if (rctree[p2].round < rctree[p1].round) {
         std::swap(p1, p2);
       }
