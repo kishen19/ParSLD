@@ -15,6 +15,7 @@ namespace gbbs {
 template <class Graph>
 double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   using W = typename Graph::weight_type;
+  using edge_info = std::tuple<uintE, uintE, uintE, W>;
 
   timer t;
   t.start();
@@ -24,18 +25,43 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
 
   //auto rctree = build_rctree_ht(GA);
   // auto rctree = build_rctree_crosslink(GA);
-  auto rctree = build_rctree_async(GA);
+  auto [rctree, offsets, neighbors] = build_rctree_async(GA);
   t.next("Build RCTree Time");
+
+  // TODO: move to utils
+  auto get_both_neighbors = [&](uintE src) -> std::vector<edge_info> {
+    uintE offset = offsets[src];
+    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
+    std::vector<edge_info> ret;
+
+    for (uintE i = 0; i < deg; ++i) {
+      if (std::get<0>(neighbors[offset + i]) != UINT_E_MAX) {
+        ret.push_back(neighbors[offset + i]);
+      }
+    }
+    assert(ret.size() == 2);
+    return ret;
+  };
 
       // Step 2: Compute bucket_id for each edge
   parallel_for(0, n, [&](size_t i) {
-    if (rctree[i].alt != UINT_E_MAX) {
-      auto alt = rctree[i].alt;
-
-      // Parent cannot have round 0 (this indicates the root).
-      if (rctree[alt].round < rctree[i].round && rctree[alt].round != 0) {
-        rctree[i].parent = alt;
+    if (rctree[i].parent == UINT_E_MAX) {
+      auto neighbors = get_both_neighbors(i);
+      if (neighbors.size() != 2) {
+        std::cerr << "wrong!" << std::endl;
+        exit(-1);
       }
+
+      auto p1 = std::get<0>(neighbors[0]);
+      auto p2 = std::get<0>(neighbors[1]);
+      if (rctree[p2].round < rctree[p1].round) {
+        std::swap(p1, p2);
+      }
+      // Parent cannot have round 0 (this indicates the root).
+      if (rctree[p1].round == 0) {
+        std::swap(p1, p2);
+      }
+      rctree[i].parent = p1;
     }
   });
   auto bkt_ids = sequence<std::pair<size_t, size_t>>::uninitialized(m);

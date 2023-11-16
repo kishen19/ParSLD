@@ -34,10 +34,6 @@ auto build_rctree_async(Graph& GA) {
   parlay::sort_inplace(edges);
   t.next("Sort edges");
 
-  auto get_key = [](uintE x, uintE y) {
-    return std::make_pair(std::min(x, y), std::max(x, y));
-  };
-
   using edge_info = std::tuple<uintE, uintE, uintE, W>;
   // Neighbors of vertex i at offsets[i] -- offsets[i+1]:
   // We store:
@@ -69,9 +65,7 @@ auto build_rctree_async(Graph& GA) {
     rctree[i].parent = i;
     // to ensure unique buckets, even if the input tree is disconnected
     rctree[i].edge_index = m + i;
-    rctree[i].alt = UINT_E_MAX;
     rctree[i].round = 0;
-    rctree[i].is_ready = 0;
   });
 
   parlay::random r(42);
@@ -157,8 +151,8 @@ auto build_rctree_async(Graph& GA) {
 
     // Check whether we want to compress this node (check neighbor
     // priorities).
-    rctree[src].is_ready = static_cast<int>(pri_greater(src, dst1)) + static_cast<int>(pri_greater(src, dst2));
-    if (rctree[src].is_ready == 2) {
+    rctree[src].parent = static_cast<uint16_t>(pri_greater(src, dst1)) + static_cast<uint16_t>(pri_greater(src, dst2));
+    if (rctree[src].parent == 2) {
       // deg[src] -= 2;
       // Update the round; finish_compress will check round.
       rctree[src].round = round;
@@ -171,7 +165,7 @@ auto build_rctree_async(Graph& GA) {
   auto finish_compress = [&](uintE src) -> uintE {
     auto cur = src;
     uintE cur_round = round;
-    while (gbbs::atomic_compare_and_swap(&rctree[cur].is_ready, 2, 3)) {
+    while (gbbs::atomic_compare_and_swap(&rctree[cur].parent, (uintE)2, UINT_E_MAX)) {
       auto our_neighbors = get_both_neighbors(cur);
       if (our_neighbors.size() != 2) {
         std::cerr << "Bad compress" << std::endl;
@@ -183,9 +177,6 @@ auto build_rctree_async(Graph& GA) {
       auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
-      // Any order here is fine, since we post-process and check both.
-      rctree[cur].parent = dst1;
-      rctree[cur].alt = dst2;
       // Check which edge is smaller; break ties using the indices.
       if (std::make_pair(wgh1, edge_index1) <
           std::make_pair(wgh2, edge_index2)) {
@@ -211,11 +202,11 @@ auto build_rctree_async(Graph& GA) {
       }
 
       if (pri_greater(dst1, dst2) && deg[dst1]==2) {
-        gbbs::write_add(&rctree[dst1].is_ready, 1);
+        gbbs::write_add(&rctree[dst1].parent, 1);
         gbbs::write_max(&rctree[dst1].round, cur_round+1);
         cur = dst1;
       } else if (pri_greater(dst2, dst1) && deg[dst2]==2) {
-        gbbs::write_add(&rctree[dst2].is_ready, 1);
+        gbbs::write_add(&rctree[dst2].parent, 1);
         gbbs::write_max(&rctree[dst2].round, cur_round+1);
         cur = dst2;
       }
@@ -223,7 +214,6 @@ auto build_rctree_async(Graph& GA) {
     return cur_round;
   };
 
-  auto get_max = [](auto a, auto b){ return std::max(a,b);};
   auto delayed_n = parlay::delayed_seq<uintE>(n, [&] (uintE i) { return i; });
   auto degree_one =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
@@ -280,18 +270,15 @@ auto build_rctree_async(Graph& GA) {
     auto unique_keys = parlay::delayed_seq<uintE>(
        indices.size(),
        [&](uintE i) { return (indices[i] < n) ? degree_one[indices[i]] : n; });
-    auto new_degree_one = parlay::filter(
+
+    // Update degree one and two.
+    degree_one = parlay::filter(
        unique_keys, [&](uintE id) { return (id < n) ? deg[id] == 1 : false; });
-    auto new_degree_two = parlay::filter(unique_keys, [&](uintE id) {
+    degree_two = parlay::filter(unique_keys, [&](uintE id) {
       // Check if this node was symmetry broken to live.
       return (id < n) ? deg[id] == 2 : false;
     });
-    degree_one = std::move(new_degree_one);
 
-    auto rem_degree_two =
-       parlay::filter(degree_two, [&](uintE id) { return deg[id] == 2; });
-    auto combined_degree_two = parlay::append(rem_degree_two, new_degree_two);
-    degree_two = std::move(combined_degree_two);
     round++;
     rt.next("Prepare next round time");
     // std::cout << rem << std::endl;
@@ -299,7 +286,7 @@ auto build_rctree_async(Graph& GA) {
   std::cout << "# Rounds = " << round << std::endl;
   t.next("RC Tree Time");
 
-  return rctree;
+  return std::make_tuple(std::move(rctree), std::move(offsets), std::move(neighbors));
 }
 
 }   // namespace gbbs
