@@ -136,6 +136,12 @@ auto build_rctree_async(Graph& GA) {
     }
   };
 
+
+  auto pri_greater = [&] (uintE src, uintE dst) {
+    uintE deg_dst = deg[dst];
+    return deg_dst != 2 || (priorities[src] > priorities[dst]);
+  };
+
   // // Implements the compress operation.
   //    Merge into the cluster with min-weight edge
   auto compress = [&](const uintE& src) {
@@ -151,8 +157,7 @@ auto build_rctree_async(Graph& GA) {
 
     // Check whether we want to compress this node (check neighbor
     // priorities).
-    rctree[src].is_ready = ((priorities[src] > priorities[dst1])?1:0) +
-        ((priorities[src] > priorities[dst2])?1:0);
+    rctree[src].is_ready = static_cast<int>(pri_greater(src, dst1)) + static_cast<int>(pri_greater(src, dst2));
     if (rctree[src].is_ready == 2) {
       // deg[src] -= 2;
       // Update the round; finish_compress will check round.
@@ -205,11 +210,11 @@ auto build_rctree_async(Graph& GA) {
                                                     edge_index1, wgh1};
       }
 
-      if ((priorities[dst1] > priorities[dst2]) && deg[dst1]==2) {
+      if (pri_greater(dst1, dst2) && deg[dst1]==2) {
         gbbs::write_add(&rctree[dst1].is_ready, 1);
         gbbs::write_max(&rctree[dst1].round, cur_round+1);
         cur = dst1;
-      } else if ((priorities[dst1] < priorities[dst2]) && deg[dst2]==2) {
+      } else if (pri_greater(dst2, dst1) && deg[dst2]==2) {
         gbbs::write_add(&rctree[dst2].is_ready, 1);
         gbbs::write_max(&rctree[dst2].round, cur_round+1);
         cur = dst2;

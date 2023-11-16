@@ -13,7 +13,7 @@ namespace gbbs {
 
 // GA is the weighted input tree.
 template <class Graph>
-double DendrogramRCtreeTracing(Graph& GA) {
+double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   using W = typename Graph::weight_type;
 
   timer t;
@@ -31,7 +31,9 @@ double DendrogramRCtreeTracing(Graph& GA) {
   parallel_for(0, n, [&](size_t i) {
     if (rctree[i].alt != UINT_E_MAX) {
       auto alt = rctree[i].alt;
-      if (rctree[alt].round < rctree[i].round) {
+
+      // Parent cannot have round 0 (this indicates the root).
+      if (rctree[alt].round < rctree[i].round && rctree[alt].round != 0) {
         rctree[i].parent = alt;
       }
     }
@@ -67,10 +69,12 @@ double DendrogramRCtreeTracing(Graph& GA) {
   t.next("Bucket Sorting and Finish Time");
 
   double tt = t.total_time();
-// for (size_t i=0; i<m; i++){
-//     std::cout << parent[i] << " ";
-// }
-// std::cout << std::endl;
+  if (debug) {
+    for (size_t i=0; i<m; i++){
+        std::cout << parent[i] << " ";
+    }
+    std::cout << std::endl;
+  }
   return tt;
 }
 
