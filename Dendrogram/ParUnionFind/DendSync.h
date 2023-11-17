@@ -12,10 +12,12 @@ template <class Graph>
 double DendrogramParUF(Graph& GA){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, uintE>;
+	// using heap_node = leftist_heap::node<kv>;
 	// using heap = leftist_heap::heap<kv>;
+	using heap_node = skew_heap::node<kv>;
 	using heap = skew_heap::heap<kv>;
+	// using heap_node = pairing_heap::node<kv>;
 	// using heap = pairing_heap::heap<kv>;
-	// using heap = pairing_heap::block_heap<kv>;
 
 	timer t;
 	t.start();
@@ -56,9 +58,15 @@ double DendrogramParUF(Graph& GA){
 	t.next("Initialize Neighbors pairs");
 
 	// Step 2: Initialize (Leftist/Skew/Pairing/Block) Heaps and Union Find
-	auto heaps = gbbs::new_array_no_init<heap>(n);
-    parallel_for(0, n, [&](size_t i){
-		heaps[i].init(neighbors.cut(offsets[i], ((i == n-1)? 2*m : offsets[i+1])));
+	auto heaps = sequence<heap>::uninitialized(n);
+	auto nodes = sequence<heap_node>::uninitialized(2*m);
+    parallel_for(0, n, [&](uintE i){
+		auto start = offsets[i];
+		auto end = (i == n-1)? 2*m : offsets[i+1];
+		parallel_for(0, end-start, [&](uintE j){
+			nodes[start + j].init(neighbors[start+j]);
+		});
+		heaps[i].init(nodes.begin()+start, end-start);
     });
 	t.next("Heap Init Time");
 

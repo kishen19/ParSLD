@@ -230,8 +230,8 @@ auto build_rctree_async(Graph& GA) {
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 2; });
   t.next("Before While loop (filters)");
   while (degree_one.size() > 0) {
-    timer rt;
-    rt.start();
+    // timer rt;
+    // rt.start();
     // (1) filtering out the initial frontier (degree 1 vertices)
     // Peel:
     // (a) emit the id of the neighbor / peeled (degree1) vertex
@@ -252,14 +252,14 @@ auto build_rctree_async(Graph& GA) {
       round += parlay::reduce_max(out_rounds) + 1;
     }
     // round++;
-    rt.next("Compress time");
+    // rt.next("Compress time");
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
       auto outp = rake_f(degree_one[i]);
       degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
-    rt.next("Rake time");
+    // rt.next("Rake time");
 
     parlay::sort_inplace(parlay::make_slice(degree_one));
     auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](uintE i) {
@@ -289,7 +289,7 @@ auto build_rctree_async(Graph& GA) {
     });
 
     round++;
-    rt.next("Prepare next round time");
+    // rt.next("Prepare next round time");
     // std::cout << rem << std::endl;
   }
   std::cout << "# Rounds = " << round << std::endl;
