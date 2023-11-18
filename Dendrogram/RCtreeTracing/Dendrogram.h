@@ -13,8 +13,6 @@ namespace gbbs {
 // GA is the weighted input tree.
 template <class Graph>
 double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
-  using W = typename Graph::weight_type;
-  using edge_info = std::tuple<uintE, uintE, uintE, W>;
 
   timer t;
   t.start();
@@ -31,7 +29,6 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   // neighbor-list in finish_compress.
   auto get_both_neighbors = [&](uintE src) -> std::vector<uintE> {
     uintE offset = offsets[src];
-    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
     std::vector<uintE> ret;
 
     for (uintE i = 0; i < 2; ++i) {
