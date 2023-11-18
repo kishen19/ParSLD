@@ -10,6 +10,7 @@
 
 // #include "DendAsync.h"
 #include "DendSync.h"
+#include "utils/benchmark.h"
 
 namespace gbbs {
 namespace {
@@ -33,4 +34,4 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 }  // namespace
 }  // namespace gbbs
 
-generate_symmetric_weighted_main(gbbs::Dendrogram_runner, true);
+generate_int_weighted_main(gbbs::Dendrogram_runner, false);

@@ -32,6 +32,7 @@ cc_binary(
     deps = [
         ":DendAsync",
         ":DendSync",
+        "//utils:benchmark",
     ],
 )
 

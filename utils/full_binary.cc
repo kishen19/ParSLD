@@ -1,41 +1,50 @@
-#include "gbbs/gbbs.h"
-
 #include <fstream>
 #include <iostream>
 
+#include "full_binary.h"
+
 namespace gbbs {
 
-int BuildPath(int argc, char* argv[]) {
+int write_full_binary_tree(int argc, char* argv[]) {
   commandLine P(argc, argv, "");
 
-  size_t n = P.getOptionLongValue("-n", 20);
+  size_t k = P.getOptionLongValue("-k", 20);
   auto out_f = P.getOptionValue("-outfile", "");
 
   if (out_f == "") {
     std::cout << "specify a valid outfile using -outfile" << std::endl;
     abort();
   }
-  
+
+  auto n = (1UL << k) - 1;
   auto m = 2*(n-1);
   std::cout << "WeightedAdjacencyGraph\n" << n << "\n" << m << std::endl;
 
   auto adj = sequence<sequence<uintE>>::uninitialized(n);
   auto wghs = sequence<sequence<uintE>>::uninitialized(n);
   parallel_for(0, n, [&](uintE i){
-    if (i == 0 || i == n-1){
-      adj[i] = sequence<uintE>(1);
-      wghs[i] = sequence<uintE>(1, 1);
-      adj[i][0] = (i==0)? i+1 : i-1;
-    } else{
+    if (i == 0){
       adj[i] = sequence<uintE>(2);
       wghs[i] = sequence<uintE>(2, 1);
-      adj[i][0] = i-1; adj[i][1] = i+1;
+      adj[i][0] = 2*i+1;
+      adj[i][1] = 2*i+2;
+    } else if (i >= n/2){
+      adj[i] = sequence<uintE>(1);
+      wghs[i] = sequence<uintE>(1, 1);
+      adj[i][0] = (i-1)/2;
+    } else{
+      adj[i] = sequence<uintE>(3);
+      wghs[i] = sequence<uintE>(3, 1);
+      adj[i][0] = (i-1)/2;
+      adj[i][1] = 2*i+1;
+      adj[i][2] = 2*i+2;
     }
   });
 
   auto deg = sequence<uintE>::from_function(n, [&](uintE i){
-    if (i==0 || i==n-1) return 1;
-    else return 2;
+    if (i==0) return 2;
+    else if (i<n/2) return 3;
+    else return 1;
   });
   parlay::scan_inplace(deg);
   auto temp = parlay::append(parlay::flatten(adj), parlay::flatten(wghs));
@@ -62,4 +71,4 @@ int BuildPath(int argc, char* argv[]) {
 
 }  // namespace gbbs
 
-int main(int argc, char* argv[]) { return gbbs::BuildPath(argc, argv); }
+int main(int argc, char* argv[]) { return gbbs::write_full_binary_tree(argc, argv); }

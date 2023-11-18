@@ -12,7 +12,10 @@ cc_library(
 cc_binary(
     name = "Dendrogram_main",
     srcs = ["Dendrogram.cc"],
-    deps = [":Dendrogram"],
+    deps = [
+        ":Dendrogram",
+        "//utils:benchmark",
+    ],
 )
 
 package(

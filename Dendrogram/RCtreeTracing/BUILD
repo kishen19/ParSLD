@@ -65,6 +65,7 @@ cc_binary(
     srcs = ["Dendrogram.cc"],
     deps = [
         ":Dendrogram",
+        "//utils:benchmark",
     ],
 )
 
