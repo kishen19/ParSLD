@@ -56,6 +56,8 @@ auto build_rctree_async(Graph& GA) {
   });
   t.next("Initialize Neighbors 4-tuples");
 
+  edges.clear();
+
   // Step 1: Compute RC Tree
   auto rctree = parlay::sequence<RCtree_node<W>>::uninitialized(n);
   // The rc-tree node where this edge was contracted / merged. This

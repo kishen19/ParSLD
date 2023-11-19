@@ -17,12 +17,21 @@ cc_library(
 )
 
 cc_library(
+    name = "uniform_hook",
+    hdrs = ["uniform_hook.h"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
     name = "benchmark",
     hdrs = ["benchmark.h"],
     deps = [
         "@gbbs//gbbs",
         ":path",
         ":full_binary",
+        ":uniform_hook",
     ],
 )
 

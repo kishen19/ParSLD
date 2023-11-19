@@ -2,9 +2,10 @@
 #pragma once
 
 // #include "assert.h"
+#include "full_binary.h"
 #include "gbbs/graph_io.h"
 #include "path.h"
-#include "full_binary.h"
+#include "uniform_hook.h"
 
 #define run_app(G, APP, mutates, rounds)    \
   double total_time = 0.0;                  \
@@ -28,6 +29,7 @@
     bool is_fullb = P.getOption("-fullb");                                   \
     bool is_randomb = P.getOption("-randomb");                               \
     bool is_randomk = P.getOption("-randomk");                               \
+    bool is_unifhook = P.getOption("-unifhook");                             \
     if (is_path) {                                                           \
       size_t n = P.getOptionLongValue("-n", 10);                             \
       auto G = gbbs::generate_path_graph<gbbs::intE>(n);                     \
@@ -35,6 +37,11 @@
     } else if (is_fullb) {                                                   \
       size_t k = P.getOptionLongValue("-k", 3);                              \
       auto G = gbbs::generate_full_binary_tree<gbbs::intE>(k);               \
+      run_app(G, APP, mutates, rounds)                                       \
+    } else if (is_unifhook) {                                                \
+      std::cout << "Generating unifhook" << std::endl; \
+      size_t n = P.getOptionLongValue("-n", 10);                             \
+      auto G = gbbs::generate_uniform_hook<gbbs::intE>(n);               \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_randomb) {                                                 \
     } else if (is_randomk) {                                                 \
@@ -45,11 +52,11 @@
       bool binary = P.getOptionValue("-b");                                  \
       if (compressed) {                                                      \
         auto G = gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::intE>( \
-            iFile, mmap);                                                    \
+           iFile, mmap);                                                     \
         run_app(G, APP, mutates, rounds)                                     \
       } else {                                                               \
         auto G = gbbs::gbbs_io::read_weighted_symmetric_graph<gbbs::intE>(   \
-            iFile, mmap, binary);                                            \
+           iFile, mmap, binary);                                             \
         run_app(G, APP, mutates, rounds)                                     \
       }                                                                      \
     }                                                                        \
