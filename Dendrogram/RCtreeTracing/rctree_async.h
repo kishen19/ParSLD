@@ -74,9 +74,6 @@ auto build_rctree_async(Graph& GA) {
   auto priorities = sequence<uint64_t>::from_function(
      n, [&](uintE i) { return r.ith_rand(i); });
 
-//  auto priorities = sequence<uint32_t>::from_function(
-//     n, [&](uintE i) { return parlay::hash32_3(i); });
-
   t.next("Preprocess (initialize RCTree Nodes and Priorities");
   uintE round = 0;
 
@@ -114,6 +111,7 @@ auto build_rctree_async(Graph& GA) {
     // We know that src has degree 1. We just need to get its neighbor
     // now by scanning neighbors[offsets[src]].
     auto [dst, index_in_dst, edge_index, wgh] = get_neighbor(src);
+    assert(deg[src] == 1);
 
     // Need to symmetry break two degree-1 nodes here.
     if (deg[dst] > 1 || (deg[dst] == 1 && src < dst)) {
@@ -132,7 +130,6 @@ auto build_rctree_async(Graph& GA) {
     }
   };
 
-
   auto pri_greater = [&] (uintE src, uintE dst) {
     uintE deg_dst = deg[dst];
     return deg_dst != 2 || (priorities[src] > priorities[dst]);
@@ -142,9 +139,10 @@ auto build_rctree_async(Graph& GA) {
   //    Merge into the cluster with min-weight edge
   auto compress = [&](const uintE& src) {
     // Invariant: src has degree 2
+    uintE deg_src = deg[src];
     auto our_neighbors = get_both_neighbors(src);
-    if (our_neighbors.size() != 2) {
-      std::cerr << "Bad compress" << std::endl;
+    if (our_neighbors.size() != 2 || deg_src != 2) {
+      std::cerr << "Bad compress: num neighbors = " << our_neighbors.size() << std::endl;
       assert(false);
       exit(-1);
     }
@@ -155,7 +153,6 @@ auto build_rctree_async(Graph& GA) {
     // priorities).
     rctree[src].parent = UINT_E_MAX - 3 + static_cast<uint16_t>(pri_greater(src, dst1)) + static_cast<uint16_t>(pri_greater(src, dst2));
     if (rctree[src].parent == UINT_E_MAX - 1) {
-      // deg[src] -= 2;
       // Update the round; finish_compress will check round.
       rctree[src].round = round;
     }
@@ -170,7 +167,7 @@ auto build_rctree_async(Graph& GA) {
     while (gbbs::atomic_compare_and_swap(&rctree[cur].parent, UINT_E_MAX - 1, UINT_E_MAX)) {
       auto our_neighbors = get_both_neighbors(cur);
       if (our_neighbors.size() != 2) {
-        std::cerr << "Bad compress" << std::endl;
+        std::cerr << "Bad compress: cur_round = " << cur_round << " round = " << round << std::endl;
         assert(false);
         exit(-1);
       }
@@ -244,9 +241,10 @@ auto build_rctree_async(Graph& GA) {
 
     // Compress
     if (degree_two.size() > 0) {
-      // Identify an indpendent set of degree 2 nodes to compress
+      // Identify an independent set of degree 2 nodes to compress
       parallel_for(0, degree_two.size(),
                   [&](uintE i) { compress(degree_two[i]); });
+
       // Async'ly compress the rest of the degree 2 nodes.
       auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
       parallel_for(0, degree_two.size(),
@@ -280,15 +278,17 @@ auto build_rctree_async(Graph& GA) {
     });
     auto unique_keys = parlay::delayed_seq<uintE>(
        indices.size(),
-       [&](uintE i) { return (indices[i] < n) ? degree_one[indices[i]] : n; });
+       [&](uintE i) { return degree_one[indices[i]]; });
 
     // Update degree one and two.
-    degree_one = parlay::filter(
+    auto degree_one_new = parlay::filter(
        unique_keys, [&](uintE id) { return (id < n) ? deg[id] == 1 : false; });
-    degree_two = parlay::filter(unique_keys, [&](uintE id) {
+    auto degree_two_new = parlay::filter(unique_keys, [&](uintE id) {
       // Check if this node was symmetry broken to live.
-      return (id < n) ? deg[id] == 2 : false;
+      return (id < n) ? (deg[id] == 2) : false;
     });
+    degree_one = std::move(degree_one_new);
+    degree_two = std::move(degree_two_new);
 
     round++;
     // rt.next("Prepare next round time");
