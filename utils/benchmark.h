@@ -2,6 +2,7 @@
 #pragma once
 
 // #include "assert.h"
+#include "generate_MSF.h"
 #include "full_binary.h"
 #include "gbbs/graph_io.h"
 #include "path.h"
@@ -56,14 +57,25 @@
       bool compressed = P.getOptionValue("-c");                              \
       bool mmap = P.getOptionValue("-m");                                    \
       bool binary = P.getOptionValue("-b");                                  \
+      bool is_forest = P.getOption("-f");                                    \
       if (compressed) {                                                      \
         auto G = gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::intE>( \
            iFile, mmap);                                                     \
-        run_app(G, APP, mutates, rounds)                                     \
+        if (is_forest){                                                      \
+          run_app(G, APP, mutates, rounds)                                   \
+        } else {                                                             \
+          auto MSF = generate_MSF(G);                                        \
+          run_app(MSF, APP, mutates, rounds)                                 \
+        }                                                                    \
       } else {                                                               \
         auto G = gbbs::gbbs_io::read_weighted_symmetric_graph<gbbs::intE>(   \
            iFile, mmap, binary);                                             \
-        run_app(G, APP, mutates, rounds)                                     \
+        if (is_forest){                                                      \
+          run_app(G, APP, mutates, rounds)                                   \
+        } else {                                                             \
+          auto MSF = generate_MSF(G);                                        \
+          run_app(MSF, APP, mutates, rounds)                                 \
+        }                                                                    \
       }                                                                      \
     }                                                                        \
   }

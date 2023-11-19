@@ -33,10 +33,20 @@ cc_library(
 )
 
 cc_library(
+    name = "generate_MSF",
+    hdrs = ["generate_MSF.h"],
+    deps = [
+        "@gbbs//gbbs",
+        "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
+    ],
+)
+
+cc_library(
     name = "benchmark",
     hdrs = ["benchmark.h"],
     deps = [
         "@gbbs//gbbs",
+        ":generate_MSF",
         ":path",
         ":star",
         ":full_binary",
