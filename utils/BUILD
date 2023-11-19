@@ -17,6 +17,14 @@ cc_library(
 )
 
 cc_library(
+    name = "star",
+    hdrs = ["star.h"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
     name = "uniform_hook",
     hdrs = ["uniform_hook.h"],
     deps = [
@@ -30,6 +38,7 @@ cc_library(
     deps = [
         "@gbbs//gbbs",
         ":path",
+        ":star",
         ":full_binary",
         ":uniform_hook",
     ],

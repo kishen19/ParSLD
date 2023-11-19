@@ -5,6 +5,7 @@
 #include "full_binary.h"
 #include "gbbs/graph_io.h"
 #include "path.h"
+#include "star.h"
 #include "uniform_hook.h"
 
 #define run_app(G, APP, mutates, rounds)    \
@@ -26,6 +27,7 @@
     gbbs::commandLine P(argc, argv, " [-s] <inFile>");                       \
     size_t rounds = P.getOptionLongValue("-rounds", 1);                      \
     bool is_path = P.getOption("-path");                                     \
+    bool is_star = P.getOption("-star");                                     \
     bool is_fullb = P.getOption("-fullb");                                   \
     bool is_randomb = P.getOption("-randomb");                               \
     bool is_randomk = P.getOption("-randomk");                               \
@@ -34,14 +36,18 @@
       size_t n = P.getOptionLongValue("-n", 10);                             \
       auto G = gbbs::generate_path_graph<gbbs::intE>(n);                     \
       run_app(G, APP, mutates, rounds)                                       \
+    } else if (is_star) {                                                    \
+      size_t n = P.getOptionLongValue("-n", 10);                             \
+      auto G = gbbs::generate_star_graph<gbbs::intE>(n);                     \
+      run_app(G, APP, mutates, rounds)                                       \
     } else if (is_fullb) {                                                   \
       size_t k = P.getOptionLongValue("-k", 3);                              \
       auto G = gbbs::generate_full_binary_tree<gbbs::intE>(k);               \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_unifhook) {                                                \
-      std::cout << "Generating unifhook" << std::endl; \
+      std::cout << "Generating unifhook" << std::endl;                       \
       size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_uniform_hook<gbbs::intE>(n);               \
+      auto G = gbbs::generate_uniform_hook<gbbs::intE>(n);                   \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_randomb) {                                                 \
     } else if (is_randomk) {                                                 \
