@@ -2,9 +2,9 @@
 #pragma once
 
 // #include "assert.h"
-#include "generate_MSF.h"
 #include "full_binary.h"
 #include "gbbs/graph_io.h"
+#include "generate_MSF.h"
 #include "path.h"
 #include "star.h"
 #include "uniform_hook.h"
@@ -35,7 +35,7 @@
     bool is_unifhook = P.getOption("-unifhook");                             \
     if (is_path) {                                                           \
       size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_path_graph<gbbs::intE>(n, P);                     \
+      auto G = gbbs::generate_path_graph<gbbs::intE>(n, P);                  \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_star) {                                                    \
       size_t n = P.getOptionLongValue("-n", 10);                             \
@@ -61,7 +61,7 @@
       if (compressed) {                                                      \
         auto G = gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::intE>( \
            iFile, mmap);                                                     \
-        if (is_forest){                                                      \
+        if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \
           auto MSF = generate_MSF(G);                                        \
@@ -70,7 +70,7 @@
       } else {                                                               \
         auto G = gbbs::gbbs_io::read_weighted_symmetric_graph<gbbs::intE>(   \
            iFile, mmap, binary);                                             \
-        if (is_forest){                                                      \
+        if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \
           auto MSF = generate_MSF(G);                                        \
