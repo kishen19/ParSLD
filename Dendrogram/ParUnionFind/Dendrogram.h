@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-double DendrogramParUF(Graph& GA){
+double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, uintE>;
 	// using heap_node = leftist_heap::node<kv>;
@@ -90,41 +90,54 @@ double DendrogramParUF(Graph& GA){
 		[&](size_t i){ return is_ready[i]==2; });
 	auto num = proc_edges.size();
 	uintE num_iters = 0;
-	std::cout << "num = " << num << std::endl;
+	std::cout << "num = " << num << ", num_async_rounds = " << num_async_rounds << std::endl;
 	while (1){
 		if (num == 1){
 			is_ready[proc_edges[0]] = 2;
 			break;
 		}
 		parallel_for(0, num, [&](uintE ind){
-			uintE i = proc_edges[ind];
-			is_ready[i]++;
-			uintE u = uf.find_compress(std::get<0>(edges[2*i]));
-			uintE v = uf.find_compress(std::get<1>(edges[2*i]));
-			parlay::par_do(
-				[&](){heaps[u].delete_min();},
-				[&](){heaps[v].delete_min();}
-			);
-			auto w = uf.unite(u,v);
-			uintE t = w^u^v;
-			heaps[w].merge(&heaps[t]);
-			if (heaps[w].is_empty()){
-				proc_edges[ind] = m;
-			} else{
-				uintE temp = heaps[w].get_min().second;
-				// heights[temp] = std::max(heights[temp], heights[i]+1);
-				parent[i] = temp;
-				gbbs::write_add(&is_ready[temp], 1);
-				if (gbbs::atomic_compare_and_swap(&is_ready[temp], 2, 3)){
-					proc_edges[ind] = temp;
-				} else{
-					proc_edges[ind] = m;
+			uintE round = 0;
+			uintE cur = proc_edges[ind];
+			while (round < num_async_rounds){
+				is_ready[cur]++;
+				uintE u = uf.find_compress(std::get<0>(edges[2*cur]));
+				uintE v = uf.find_compress(std::get<1>(edges[2*cur]));
+				if (u==v){
+					std::cout << "u = " << std::get<0>(edges[2*cur]) << ", v = " << std::get<1>(edges[2*cur]) << std::endl;
 				}
+				parlay::par_do(
+					[&](){heaps[u].delete_min();},
+					[&](){heaps[v].delete_min();}
+				);
+				auto w = uf.unite(u,v);
+				uintE t = w^u^v;
+				heaps[w].merge(&heaps[t]);
+				if (heaps[w].is_empty()) {
+					proc_edges[ind] = m;
+					break;
+				} else {
+					uintE temp = heaps[w].get_min().second;
+					// heights[temp] = std::max(heights[temp], heights[i]+1);
+					parent[cur] = temp;
+					gbbs::write_add(&is_ready[temp], 1);
+					if (gbbs::atomic_compare_and_swap(&is_ready[temp], 2, 3)){
+						if (round == num_async_rounds - 1){
+							proc_edges[ind] = temp;
+						} else {
+							cur = temp;
+						}
+					} else{
+						proc_edges[ind] = m;
+						break;
+					}
+				}
+				round++;
 			}
 		});
 		proc_edges = parlay::filter(proc_edges, [&](auto i){return (i != m);});
 		num = proc_edges.size();
-		// std::cout << "num = " << num  << std::endl;
+		std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
 	t.next("Dendrogram Stage 1 Time");

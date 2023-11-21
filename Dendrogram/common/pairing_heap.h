@@ -78,9 +78,9 @@ struct heap{
 
     inline void delete_min(){
         if (root){
-            node<key_type>* temp = root;
+            // node<key_type>* temp = root;
             root = two_pass_merge(root->child);
-            node_allocator::destroy(temp);
+            // node_allocator::destroy(temp);
             size--;
         } else{
             std::cout << "Empty Heap!" << std::endl;

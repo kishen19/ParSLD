@@ -8,8 +8,7 @@
 //     -c : indicate that the graph is compressed
 //     -rounds : the number of times to run the algorithm
 
-// #include "DendAsync.h"
-#include "DendSync.h"
+#include "Dendrogram.h"
 #include "utils/benchmark.h"
 
 namespace gbbs {
@@ -25,7 +24,8 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 	std::cout << "### ------------------------------------" << std::endl;
 	assert(P.getOption("-s"));
 
-	double tt = DendrogramParUF(G);
+	uintE num_async_rounds = 10;
+	double tt = DendrogramParUF(G, num_async_rounds);
 
 	std::cout << "### Running Time: " << tt << std::endl;
 	return tt;
