@@ -25,7 +25,9 @@ double Dendrogram_runner(Graph& G, commandLine P) {
   assert(P.getOption("-s"));
   bool debug = P.getOption("-d");
 
-  double tt = DendrogramRCtreeTracing(G, debug);
+  timer t; t.start();
+  auto parents = DendrogramRCtreeTracing(G, debug);
+  t.stop(); double tt = t.total_time();
 
   std::cout << "### Running Time: " << tt << std::endl;
   return tt;

@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
+auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, uintE>;
 	// using heap_node = leftist_heap::node<kv>;
@@ -156,15 +156,13 @@ double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 		parent[ind] = temp;
 	});
 	t.next("Dendrogram Stage 2 Time");
-	double tt = t.total_time();
   std::cout << "Number of Rounds = " << num_iters << std::endl;
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;
 	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 
-	// return parents;
-	return tt;
+	return parent;
 }
 
 }  // namespace gbbs

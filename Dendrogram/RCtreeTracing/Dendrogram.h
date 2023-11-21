@@ -12,7 +12,7 @@ namespace gbbs {
 
 // GA is the weighted input tree.
 template <class Graph>
-double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
+auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
 
   timer t;
   t.start();
@@ -75,7 +75,7 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   t.next("Bucket Computation Time");
 
   // Step 3: Sort by bkt_ids
-  auto parent = sequence<size_t>::from_function(m, [&](size_t i) { return i; });
+  auto parent = sequence<uintE>::from_function(m, [&](size_t i) { return i; });
   sort_inplace(bkt_ids);
   parallel_for(0, n - 1, [&](size_t i) {
     if (bkt_ids[i].first == bkt_ids[i + 1].first) {
@@ -88,14 +88,13 @@ double DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   });
   t.next("Bucket Sorting and Finish Time");
 
-  double tt = t.total_time();
   if (debug) {
     for (size_t i=0; i<m; i++){
         std::cout << parent[i] << " ";
     }
     std::cout << std::endl;
   }
-  return tt;
+  return parent;
 }
 
 }   // namespace gbbs

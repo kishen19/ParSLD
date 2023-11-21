@@ -7,7 +7,7 @@
 namespace gbbs {
 
 template <class Graph>
-double DendrogramSeqUF(Graph& GA){
+auto DendrogramSeqUF(Graph& GA){
 	using W = typename Graph::weight_type;
 
 	timer t;
@@ -68,7 +68,6 @@ double DendrogramSeqUF(Graph& GA){
 	};
 	t.next("Dendrogram Time");
   std::cout << "Total dendrogram work: " << total_work << std::endl;
-	double tt = t.total_time();
 
 	// for (size_t i=0; i<m; i++){
     //     std::cout << parent[i] << " ";
@@ -76,7 +75,7 @@ double DendrogramSeqUF(Graph& GA){
     // std::cout << std::endl;
 
 	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
-	return tt;
+  return parent;
 }
 
 }  // namespace gbbs

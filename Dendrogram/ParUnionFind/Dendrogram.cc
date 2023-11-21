@@ -25,7 +25,10 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 	assert(P.getOption("-s"));
 
 	uintE num_async_rounds = 10;
-	double tt = DendrogramParUF(G, num_async_rounds);
+  timer t; t.start();
+	auto parents = DendrogramParUF(G, num_async_rounds);
+  t.stop();
+  double tt = t.total_time();
 
 	std::cout << "### Running Time: " << tt << std::endl;
 	return tt;
