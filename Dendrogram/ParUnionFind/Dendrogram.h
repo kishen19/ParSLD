@@ -91,7 +91,7 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 	auto num = proc_edges.size();
 	uintE num_iters = 0;
 	std::cout << "num = " << num << ", num_async_rounds = " << num_async_rounds << std::endl;
-	while (1){
+	while (num > 0){
 		if (num == 1){
 			is_ready[proc_edges[0]] = 2;
 			break;
@@ -137,30 +137,35 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 		});
 		proc_edges = parlay::filter(proc_edges, [&](auto i){return (i != m);});
 		num = proc_edges.size();
-		// std::cout << "num = " << num  << std::endl;
+		std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
 	t.next("Dendrogram Stage 1 Time");
-	auto rem_edges = parlay::filter(parlay::iota<uintE>(m), 
-		[&](uintE i){ return is_ready[i] < 3; });
-	sort_inplace(rem_edges, [&](auto e1, auto e2){
-		auto p1 = std::make_pair(std::get<3>(edges[e1]), e1);
-		auto p2 = std::make_pair(std::get<3>(edges[e2]), e2);
-		return (p1 < p2);
-	});
-	num = rem_edges.size();
-	parallel_for(0, num-1, [&](size_t i){
-		auto ind = rem_edges[i];
-		auto temp = rem_edges[i+1];
-		// heights[temp] = num_iters + i + 1; //std::max(heights[temp], heights[i]+1);
-		parent[ind] = temp;
-	});
-	t.next("Dendrogram Stage 2 Time");
-  std::cout << "Number of Rounds = " << num_iters << std::endl;
+	if (num > 0){
+		auto rem_edges = parlay::filter(parlay::iota<uintE>(m), 
+			[&](uintE i){ return is_ready[i] < 3; });
+		sort_inplace(rem_edges, [&](auto e1, auto e2){
+			auto p1 = std::make_pair(std::get<3>(edges[e1]), e1);
+			auto p2 = std::make_pair(std::get<3>(edges[e2]), e2);
+			return (p1 < p2);
+		});
+		num = rem_edges.size();
+		parallel_for(0, num-1, [&](size_t i){
+			auto ind = rem_edges[i];
+			auto temp = rem_edges[i+1];
+			// heights[temp] = num_iters + i + 1; //std::max(heights[temp], heights[i]+1);
+			parent[ind] = temp;
+		});
+		t.next("Dendrogram Stage 2 Time");
+	}
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;
 	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
+	// for (size_t i=0; i<m; i++){
+    //     std::cout << parent[i] << " ";
+    // }
+    // std::cout << std::endl;
 
 	return parent;
 }
