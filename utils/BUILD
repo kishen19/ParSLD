@@ -17,6 +17,14 @@ cc_library(
 )
 
 cc_library(
+    name = "caterpillar",
+    hdrs = ["caterpillar.h"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
     name = "star",
     hdrs = ["star.h"],
     deps = [
@@ -47,6 +55,7 @@ cc_library(
     deps = [
         "@gbbs//gbbs",
         ":generate_MSF",
+        ":caterpillar",
         ":path",
         ":star",
         ":full_binary",

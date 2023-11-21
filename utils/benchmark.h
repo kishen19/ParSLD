@@ -2,6 +2,7 @@
 #pragma once
 
 // #include "assert.h"
+#include "caterpillar.h"
 #include "full_binary.h"
 #include "gbbs/graph_io.h"
 #include "generate_MSF.h"
@@ -28,6 +29,7 @@
     gbbs::commandLine P(argc, argv, " [-s] <inFile>");                       \
     size_t rounds = P.getOptionLongValue("-rounds", 1);                      \
     bool is_path = P.getOption("-path");                                     \
+    bool is_caterpillar = P.getOption("-caterpillar");                       \
     bool is_star = P.getOption("-star");                                     \
     bool is_fullb = P.getOption("-fullb");                                   \
     bool is_randomb = P.getOption("-randomb");                               \
@@ -40,6 +42,10 @@
     } else if (is_star) {                                                    \
       size_t n = P.getOptionLongValue("-n", 10);                             \
       auto G = gbbs::generate_star_graph<gbbs::intE>(n);                     \
+      run_app(G, APP, mutates, rounds)                                       \
+    } else if (is_caterpillar) {                                             \
+      size_t k = P.getOptionLongValue("-k", 3);                              \
+      auto G = gbbs::generate_caterpillar_graph<gbbs::intE>(k, P);              \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_fullb) {                                                   \
       size_t k = P.getOptionLongValue("-k", 3);                              \
