@@ -239,20 +239,20 @@ auto build_rctree_async(Graph& GA) {
     std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
     std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
 
-//    // Compress
-//    if (degree_two.size() > 0) {
-//      // Identify an independent set of degree 2 nodes to compress
-//      parallel_for(0, degree_two.size(),
-//                  [&](uintE i) { compress(degree_two[i]); });
-//
-//      // Async'ly compress the rest of the degree 2 nodes.
-//      auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
-//      parallel_for(0, degree_two.size(),
-//                  [&](uintE i) { out_rounds[i] = finish_compress(degree_two[i]); });
-//      round += parlay::reduce_max(out_rounds) + 1;
-//    }
-//    // round++;
-//    // rt.next("Compress time");
+   // Compress
+   if (degree_two.size() > 0) {
+     // Identify an independent set of degree 2 nodes to compress
+     parallel_for(0, degree_two.size(),
+                 [&](uintE i) { compress(degree_two[i]); });
+
+     // Async'ly compress the rest of the degree 2 nodes.
+     auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
+     parallel_for(0, degree_two.size(),
+                 [&](uintE i) { out_rounds[i] = finish_compress(degree_two[i]); });
+     round += parlay::reduce_max(out_rounds) + 1;
+   }
+   // round++;
+   // rt.next("Compress time");
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
