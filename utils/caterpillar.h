@@ -25,7 +25,7 @@ auto generate_caterpillar_graph(size_t k, P& cmd_line) {
     edges[i] = {p[i], p[i+1], 1};
   });
   parallel_for(midp, m, [&](uintE i) {
-    edges[midp + i] = {p[i-midp], p[i], 1};
+    edges[i] = {p[i-midp], p[i+1], 1};
   });
   auto edge_list = edge_array<W>(std::move(edges), n);
   return gbbs_io::edge_list_to_symmetric_graph<W>(edge_list);
