@@ -101,8 +101,8 @@ double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 			uintE cur = proc_edges[ind];
 			while (round < num_async_rounds){
 				is_ready[cur]++;
-				uintE u = uf.find_compress(std::get<0>(edges[2*cur]));
-				uintE v = uf.find_compress(std::get<1>(edges[2*cur]));
+				auto [u, tw1] = uf.find_compress(std::get<0>(edges[2*cur]));
+				auto [v, tw2] = uf.find_compress(std::get<1>(edges[2*cur]));
 				if (u==v){
 					std::cout << "u = " << std::get<0>(edges[2*cur]) << ", v = " << std::get<1>(edges[2*cur]) << std::endl;
 				}
@@ -110,7 +110,7 @@ double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 					[&](){heaps[u].delete_min();},
 					[&](){heaps[v].delete_min();}
 				);
-				auto w = uf.unite(u,v);
+				auto [w, tw] = uf.unite(u,v);
 				uintE t = w^u^v;
 				heaps[w].merge(&heaps[t]);
 				if (heaps[w].is_empty()) {

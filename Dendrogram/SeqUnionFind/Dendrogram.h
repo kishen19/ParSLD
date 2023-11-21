@@ -43,12 +43,15 @@ double DendrogramSeqUF(Graph& GA){
 	auto aux = sequence<uintE>(n, n); // extra info required for assigning parents
 	// auto heights = sequence<uintE>(m,0); // Heights of every node in the dendrogram
 
+  size_t total_work = 0;
+
 	for(uintE ind = 0; ind < m; ind++){
 		auto i = std::get<1>(proc_edges[ind]);
-		auto u = uf.find_compress(std::get<0>(edges[2*i]));
-		auto v = uf.find_compress(std::get<1>(edges[2*i]));
+		auto [u, tw1] = uf.find_compress(std::get<0>(edges[2*i]));
+		auto [v, tw2] = uf.find_compress(std::get<1>(edges[2*i]));
 		// uintE height = 0;
-		if (aux[u] < n){
+    total_work += tw1 + tw2;
+    if (aux[u] < n){
 			parent[aux[u]] = i;
 			// height = heights[aux[u]] + 1;
 			aux[u] = n;
@@ -58,11 +61,13 @@ double DendrogramSeqUF(Graph& GA){
 			// height = std::max(height, heights[aux[v]] + 1);
 			aux[v] = n;
 		}
-		auto w = uf.unite(u,v);
+		auto [w, tw3] = uf.unite(u,v);
+    total_work += tw3;
 		aux[w] = i;
 		// heights[i] = height;
 	};
 	t.next("Dendrogram Time");
+  std::cout << "Total dendrogram work: " << total_work << std::endl;
 	double tt = t.total_time();
 
 	// for (size_t i=0; i<m; i++){

@@ -35,7 +35,7 @@
     bool is_unifhook = P.getOption("-unifhook");                             \
     if (is_path) {                                                           \
       size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_path_graph<gbbs::intE>(n);                     \
+      auto G = gbbs::generate_path_graph<gbbs::intE>(n, P);                     \
       run_app(G, APP, mutates, rounds)                                       \
     } else if (is_star) {                                                    \
       size_t n = P.getOptionLongValue("-n", 10);                             \
