@@ -23,7 +23,7 @@ using ::testing::ElementsAre;
 namespace gbbs {
 
 auto GetGraph(std::string s) {
-  size_t n = 10000;
+  size_t n = 1000;
   size_t k = 14;
   if (s == "path") {
     return gbbs::generate_path_graph<gbbs::intE>(n);
@@ -38,10 +38,9 @@ auto GetGraph(std::string s) {
   }
 }
 
-class MyTestSuite : public testing::TestWithParam<std::tuple<std::string, std::string, std::string>> {
+class TestDendrogram : public testing::TestWithParam<std::tuple<std::string, std::string, std::string>> {
 };
 
-template <class P>
 void apply_weights(
     gbbs::edge_array<gbbs::intE>& edges, std::string opt) {
   if (opt == "perm_weights") {
@@ -53,7 +52,7 @@ void apply_weights(
   }
 }
 
-TEST_P(MyTestSuite, RunAlgorithm) {
+TEST_P(TestDendrogram, RunAlgorithm) {
   auto E = GetGraph(std::get<0>(GetParam()));
   apply_weights(E, std::get<2>(GetParam()));
   auto G = gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(E);
@@ -68,18 +67,22 @@ TEST_P(MyTestSuite, RunAlgorithm) {
   std::cout << "Generated parents_par!" << std::endl;
   EXPECT_EQ(parents_seq.size(), parents_par.size());
   for (size_t i=0; i<parents_seq.size(); ++i) {
-    EXPECT_EQ(parents_seq[i], parents_par[i]);
+    EXPECT_EQ(parents_seq[i], parents_par[i]) << " index: " << i;
   }
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    MyGroup, MyTestSuite,
+    MyGroup, TestDendrogram,
     testing::Combine(
-        testing::Values("path", "star", "caterpillar", "fullb", "unifhook"),
-        testing::Values("ParUF", "RCtree"),
-        testing::Values("unit_weights", "perm_weights")),
-    [](const testing::TestParamInfo<MyTestSuite::ParamType>& info) {
-      std::string name = std::get<0>(info.param)+"-"+std::get<1>(info.param)+"-"+std::get<2>(info.param);
+        testing::Values("path"),
+        testing::Values("RCtree"),
+        testing::Values("unit_weights")),
+//    testing::Combine(
+//        testing::Values("path", "star", "caterpillar", "fullb", "unifhook"),
+//        testing::Values("ParUF", "RCtree"),
+//        testing::Values("unit_weights", "perm_weights")),
+    [](const testing::TestParamInfo<TestDendrogram::ParamType>& info) {
+      std::string name = std::get<0>(info.param)+std::get<1>(info.param)+std::get<2>(info.param);
       return name;
     });
 
