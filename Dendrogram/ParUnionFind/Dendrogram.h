@@ -137,7 +137,7 @@ double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 		});
 		proc_edges = parlay::filter(proc_edges, [&](auto i){return (i != m);});
 		num = proc_edges.size();
-		std::cout << "num = " << num  << std::endl;
+		// std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
 	t.next("Dendrogram Stage 1 Time");
@@ -157,6 +157,7 @@ double DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 	});
 	t.next("Dendrogram Stage 2 Time");
 	double tt = t.total_time();
+  std::cout << "Number of Rounds = " << num_iters << std::endl;
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;

@@ -18,8 +18,7 @@ auto generate_uniform_hook(size_t n) {
     edges[i-1] = {i, target, 1};
   });
   std::cout << "Generated edges" << std::endl;
-  auto edge_list = edge_array<W>(std::move(edges), n);
-  return gbbs_io::edge_list_to_symmetric_graph<W>(edge_list);
+  return edge_array<W>(std::move(edges), n);
 }
 
 } // namespace gbbs

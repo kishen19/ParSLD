@@ -5,10 +5,25 @@
 #include "caterpillar.h"
 #include "full_binary.h"
 #include "gbbs/graph_io.h"
+#include "gbbs/gbbs.h"
 #include "generate_MSF.h"
 #include "path.h"
 #include "star.h"
 #include "uniform_hook.h"
+
+namespace gbbs {
+template <class P>
+void apply_weights(
+    gbbs::edge_array<gbbs::intE>& edges, P& cmd_line) {
+  if (cmd_line.getOption("-perm_weights")) {
+    auto A = parlay::random_permutation(edges.size());
+    parlay::parallel_for(0, edges.size(), [&] (size_t i) {
+      auto [u, v, wgh] = edges.E[i];
+      edges.E[i] = {u, v, A[i] + 1};
+    });
+  }
+}
+}  // namespace gbbs
 
 #define run_app(G, APP, mutates, rounds)    \
   double total_time = 0.0;                  \
@@ -35,29 +50,32 @@
     bool is_randomb = P.getOption("-randomb");                               \
     bool is_randomk = P.getOption("-randomk");                               \
     bool is_unifhook = P.getOption("-unifhook");                             \
-    if (is_path) {                                                           \
-      size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_path_graph<gbbs::intE>(n, P);                  \
+    size_t build_graph = is_path + is_caterpillar + is_star + is_fullb +     \
+                         is_randomb + is_randomk + is_unifhook;              \
+    if (build_graph) {                                                       \
+      gbbs::edge_array<gbbs::intE> edge_list;                  \
+      if (is_path) {                                                         \
+        size_t n = P.getOptionLongValue("-n", 10);                           \
+        edge_list = gbbs::generate_path_graph<gbbs::intE>(n);             \
+      } else if (is_star) {                                                  \
+        size_t n = P.getOptionLongValue("-n", 10);                           \
+        edge_list = gbbs::generate_star_graph<gbbs::intE>(n);                \
+      } else if (is_caterpillar) {                                           \
+        size_t k = P.getOptionLongValue("-k", 3);                            \
+        edge_list = gbbs::generate_caterpillar_graph<gbbs::intE>(k);      \
+      } else if (is_fullb) {                                                 \
+        size_t k = P.getOptionLongValue("-k", 3);                            \
+        edge_list = gbbs::generate_full_binary_tree<gbbs::intE>(k);          \
+      } else if (is_unifhook) {                                              \
+        std::cout << "Generating unifhook" << std::endl;                     \
+        size_t n = P.getOptionLongValue("-n", 10);                           \
+        edge_list = gbbs::generate_uniform_hook<gbbs::intE>(n);              \
+      } else if (is_randomb) {                                               \
+      } else if (is_randomk) {                                               \
+      }                                                                      \
+      gbbs::apply_weights(edge_list, P);                                               \
+      auto G = gbbs::gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(edge_list);          \
       run_app(G, APP, mutates, rounds)                                       \
-    } else if (is_star) {                                                    \
-      size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_star_graph<gbbs::intE>(n);                     \
-      run_app(G, APP, mutates, rounds)                                       \
-    } else if (is_caterpillar) {                                             \
-      size_t k = P.getOptionLongValue("-k", 3);                              \
-      auto G = gbbs::generate_caterpillar_graph<gbbs::intE>(k, P);              \
-      run_app(G, APP, mutates, rounds)                                       \
-    } else if (is_fullb) {                                                   \
-      size_t k = P.getOptionLongValue("-k", 3);                              \
-      auto G = gbbs::generate_full_binary_tree<gbbs::intE>(k);               \
-      run_app(G, APP, mutates, rounds)                                       \
-    } else if (is_unifhook) {                                                \
-      std::cout << "Generating unifhook" << std::endl;                       \
-      size_t n = P.getOptionLongValue("-n", 10);                             \
-      auto G = gbbs::generate_uniform_hook<gbbs::intE>(n);                   \
-      run_app(G, APP, mutates, rounds)                                       \
-    } else if (is_randomb) {                                                 \
-    } else if (is_randomk) {                                                 \
     } else {                                                                 \
       char* iFile = P.getArgument(0);                                        \
       bool compressed = P.getOptionValue("-c");                              \
@@ -66,7 +84,7 @@
       bool is_forest = P.getOption("-f");                                    \
       if (compressed) {                                                      \
         auto G = gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::intE>( \
-           iFile, mmap);                                                     \
+            iFile, mmap);                                                    \
         if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \
@@ -75,7 +93,7 @@
         }                                                                    \
       } else {                                                               \
         auto G = gbbs::gbbs_io::read_weighted_symmetric_graph<gbbs::intE>(   \
-           iFile, mmap, binary);                                             \
+            iFile, mmap, binary);                                            \
         if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \

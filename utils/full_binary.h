@@ -14,8 +14,7 @@ auto generate_full_binary_tree(size_t k) {
     edges[2*i] = {i, 2*i+1, 1};
     edges[2*i+1] = {i, 2*i+2, 1};
   });
-  auto edge_list = edge_array<W>(std::move(edges), n);
-  return gbbs_io::edge_list_to_symmetric_graph<W>(edge_list);
+  return edge_array<W>(std::move(edges), n);
 }
 
 } // namespace gbbs

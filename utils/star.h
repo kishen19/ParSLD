@@ -12,8 +12,7 @@ auto generate_star_graph(size_t n) {
   parallel_for(1, n, [&](uintE i){
     edges[i-1] = {0, i, 1};
   });
-  auto edge_list = edge_array<W>(std::move(edges), n);
-  return gbbs_io::edge_list_to_symmetric_graph<W>(edge_list);
+  return edge_array<W>(std::move(edges), n);
 }
 
 } // namespace gbbs
