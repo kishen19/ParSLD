@@ -38,11 +38,24 @@ auto GetGraph(std::string s) {
   }
 }
 
-class MyTestSuite : public testing::TestWithParam<std::tuple<std::string, std::string>> {
+class MyTestSuite : public testing::TestWithParam<std::tuple<std::string, std::string, std::string>> {
 };
+
+template <class P>
+void apply_weights(
+    gbbs::edge_array<gbbs::intE>& edges, std::string opt) {
+  if (opt == "perm_weights") {
+    auto A = parlay::random_permutation(edges.size());
+    parlay::parallel_for(0, edges.size(), [&] (size_t i) {
+      auto [u, v, wgh] = edges.E[i];
+      edges.E[i] = {u, v, A[i] + 1};
+    });
+  }
+}
 
 TEST_P(MyTestSuite, RunAlgorithm) {
   auto E = GetGraph(std::get<0>(GetParam()));
+  apply_weights(E, std::get<2>(GetParam()));
   auto G = gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(E);
   auto parents_seq = DendrogramSeqUF(G);
   std::cout << "Generated parents!" << std::endl;
@@ -63,9 +76,10 @@ INSTANTIATE_TEST_SUITE_P(
     MyGroup, MyTestSuite,
     testing::Combine(
         testing::Values("path", "star", "caterpillar", "fullb", "unifhook"),
-        testing::Values("ParUF", "RCtree")),
+        testing::Values("ParUF", "RCtree"),
+        testing::Values("unit_weights", "perm_weights")),
     [](const testing::TestParamInfo<MyTestSuite::ParamType>& info) {
-      std::string name = std::get<0>(info.param)+std::get<1>(info.param);
+      std::string name = std::get<0>(info.param)+"-"+std::get<1>(info.param)+"-"+std::get<2>(info.param);
       return name;
     });
 
