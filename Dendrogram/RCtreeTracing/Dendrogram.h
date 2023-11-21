@@ -58,6 +58,7 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
       rctree[i].parent = p1;
     }
   });
+
   auto bkt_ids = sequence<std::pair<size_t, size_t>>::uninitialized(m);
   parallel_for(0, n, [&](size_t i) {
     auto edge_index = rctree[i].edge_index;
@@ -66,8 +67,14 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
       auto cur = rctree[i].parent;
       auto new_wgh = std::make_pair(rctree[cur].wgh, rctree[cur].edge_index);
       while (rctree[cur].parent != cur && new_wgh < wgh) {
+        if (edge_index == 673) {
+          std::cout << "cur = " << cur << " new_wgh = " << new_wgh.first << " " << new_wgh.second << std::endl;
+        }
         cur = rctree[cur].parent;
         new_wgh = std::make_pair(rctree[cur].wgh, rctree[cur].edge_index);
+      }
+      if (edge_index == 673) {
+        std::cout << "bucket = " << rctree[cur].edge_index << " " << edge_index << std::endl;
       }
       bkt_ids[edge_index] = {rctree[cur].edge_index, edge_index};
     }
