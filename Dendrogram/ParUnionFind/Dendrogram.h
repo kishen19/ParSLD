@@ -142,8 +142,8 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10, bool debug = false)
 		auto rem_edges = parlay::filter(parlay::iota<uintE>(m), 
 			[&](uintE i){ return is_ready[i] < 3; });
 		sort_inplace(rem_edges, [&](auto e1, auto e2){
-			auto p1 = std::make_pair(std::get<3>(edges[e1]), e1);
-			auto p2 = std::make_pair(std::get<3>(edges[e2]), e2);
+			auto p1 = std::make_pair(std::get<3>(edges[2*e1]), e1);
+			auto p2 = std::make_pair(std::get<3>(edges[2*e2]), e2);
 			return (p1 < p2);
 		});
 		num = rem_edges.size();
