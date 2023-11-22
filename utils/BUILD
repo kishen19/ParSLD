@@ -54,6 +54,7 @@ cc_library(
     hdrs = ["benchmark.h"],
     deps = [
         "@gbbs//gbbs",
+        "@gbbs//gbbs:graph_io",
         ":generate_MSF",
         ":caterpillar",
         ":path",

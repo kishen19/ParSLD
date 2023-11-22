@@ -4,8 +4,8 @@
 // #include "assert.h"
 #include "caterpillar.h"
 #include "full_binary.h"
-#include "gbbs/graph_io.h"
 #include "gbbs/gbbs.h"
+#include "gbbs/graph_io.h"
 #include "generate_MSF.h"
 #include "path.h"
 #include "star.h"
@@ -13,27 +13,45 @@
 
 namespace gbbs {
 template <class P>
-void apply_weights(
-    gbbs::edge_array<gbbs::intE>& edges, P& cmd_line) {
+void apply_weights(gbbs::edge_array<gbbs::intE>& edges, P& cmd_line) {
   if (cmd_line.getOption("-perm_weights")) {
     auto A = parlay::random_permutation(edges.size());
-    parlay::parallel_for(0, edges.size(), [&] (size_t i) {
+    parlay::parallel_for(0, edges.size(), [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
       edges.E[i] = {u, v, A[i] + 1};
     });
-  } else if (cmd_line.getOption("-low_parallelism")){
+  } else if (cmd_line.getOption("-low_parallelism")) {
     auto m = edges.size();
-    parlay::parallel_for(0, m, [&] (size_t i) {
+    parlay::parallel_for(0, m, [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
-      if (i < m/2){
+      if (i < m / 2) {
         edges.E[i] = {u, v, i};
       } else {
-        edges.E[i] = {u, v, m-1-i+m/2};
+        edges.E[i] = {u, v, m - 1 - i + m / 2};
       }
     });
   }
 }
-}  // namespace gbbs
+
+template <class W>
+using Edge = gbbs_io::Edge<W>;
+
+template <class P>
+gbbs::edge_array<gbbs::intE> add_weights(
+   std::vector<Edge<gbbs::empty>> edge_list, P& cmd_line) {
+  auto edges = gbbs::edge_array<gbbs::intE>();
+  using edge = typename gbbs::edge_array<gbbs::intE>::edge;
+  edges.E = parlay::sequence<edge>::uninitialized(edge_list.size());
+  parlay::parallel_for(0, edge_list.size(), [&](size_t i) {
+    auto [u, v, _] = edge_list[i];
+    edges.E[i] = {u, v, 0};
+  });
+  // Note: n is not set in edges.
+  apply_weights(edges, cmd_line);
+  return edges;
+}
+
+}   // namespace gbbs
 
 #define run_app(G, APP, mutates, rounds)    \
   double total_time = 0.0;                  \
@@ -62,17 +80,18 @@ void apply_weights(
     bool is_unifhook = P.getOption("-unifhook");                             \
     size_t build_graph = is_path + is_caterpillar + is_star + is_fullb +     \
                          is_randomb + is_randomk + is_unifhook;              \
+    bool is_edge_array = P.getOption("-EA");                                 \
     if (build_graph) {                                                       \
-      gbbs::edge_array<gbbs::intE> edge_list;                  \
+      gbbs::edge_array<gbbs::intE> edge_list;                                \
       if (is_path) {                                                         \
         size_t n = P.getOptionLongValue("-n", 10);                           \
-        edge_list = gbbs::generate_path_graph<gbbs::intE>(n);             \
+        edge_list = gbbs::generate_path_graph<gbbs::intE>(n);                \
       } else if (is_star) {                                                  \
         size_t n = P.getOptionLongValue("-n", 10);                           \
         edge_list = gbbs::generate_star_graph<gbbs::intE>(n);                \
       } else if (is_caterpillar) {                                           \
         size_t k = P.getOptionLongValue("-k", 3);                            \
-        edge_list = gbbs::generate_caterpillar_graph<gbbs::intE>(k);      \
+        edge_list = gbbs::generate_caterpillar_graph<gbbs::intE>(k);         \
       } else if (is_fullb) {                                                 \
         size_t k = P.getOptionLongValue("-k", 3);                            \
         edge_list = gbbs::generate_full_binary_tree<gbbs::intE>(k);          \
@@ -83,8 +102,16 @@ void apply_weights(
       } else if (is_randomb) {                                               \
       } else if (is_randomk) {                                               \
       }                                                                      \
-      gbbs::apply_weights(edge_list, P);                                               \
-      auto G = gbbs::gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(edge_list);          \
+      gbbs::apply_weights(edge_list, P);                                     \
+      auto G =                                                               \
+         gbbs::gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(edge_list); \
+      run_app(G, APP, mutates, rounds)                                       \
+    } else if (is_edge_array) {                                              \
+      char* iFile = P.getArgument(0);                                        \
+      auto edge_list{gbbs::gbbs_io::read_unweighted_edge_list(iFile)};       \
+      auto weighted_edge_list = gbbs::add_weights(edge_list, P);             \
+      auto G = gbbs::gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(      \
+         weighted_edge_list);                                                \
       run_app(G, APP, mutates, rounds)                                       \
     } else {                                                                 \
       char* iFile = P.getArgument(0);                                        \
@@ -94,7 +121,7 @@ void apply_weights(
       bool is_forest = P.getOption("-f");                                    \
       if (compressed) {                                                      \
         auto G = gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::intE>( \
-            iFile, mmap);                                                    \
+           iFile, mmap);                                                     \
         if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \
@@ -103,7 +130,7 @@ void apply_weights(
         }                                                                    \
       } else {                                                               \
         auto G = gbbs::gbbs_io::read_weighted_symmetric_graph<gbbs::intE>(   \
-            iFile, mmap, binary);                                            \
+           iFile, mmap, binary);                                             \
         if (is_forest) {                                                     \
           run_app(G, APP, mutates, rounds)                                   \
         } else {                                                             \
