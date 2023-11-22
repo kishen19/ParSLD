@@ -13,6 +13,7 @@ namespace gbbs {
 // GA is the weighted input tree.
 template <class Graph>
 auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
+  using W = typename Graph::weight_type;
 
   timer t;
   t.start();
@@ -41,47 +42,23 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
     std::cout << "i: " << i << ", round: " << rctree[i].round << ", parent: " << rctree[i].parent << ", edge: " << rctree[i].edge_index << std::endl;
   }
 
-      // Step 2: Compute bucket_id for each edge
+  auto bkt_ids = sequence<std::pair<uintE, std::pair<W, uintE>>>::uninitialized(m);
   parallel_for(0, n, [&](size_t i) {
-    if (rctree[i].parent == UINT_E_MAX) {
-      auto neighbors = get_both_neighbors(i);
-      if (neighbors.size() != 2) {
-        std::cerr << "wrong!" << std::endl;
-        exit(-1);
-      }
-
-      auto p1 = neighbors[0];
-      auto p2 = neighbors[1];
-      std::cout << "edge: " << rctree[i].edge_index << ", i: " << i << ", p1: " << p1 << ", p2: " << p2 << std::endl;
-      if (rctree[p2].round < rctree[p1].round) {
-        std::swap(p1, p2);
-      }
-      // Parent cannot have round 0 (this indicates the root).
-      if (rctree[p1].round == 0) {
-        std::swap(p1, p2);
-      }
-      rctree[i].parent = p1;
-    }
-  });
-
-  auto bkt_ids = sequence<std::pair<size_t, size_t>>::uninitialized(m);
-  parallel_for(0, n, [&](size_t i) {
+    // Start at every RCtree node, and the edge associated with it.
     auto edge_index = rctree[i].edge_index;
-    if (edge_index < m) {
+    if (edge_index < m) { // Check for a non-root.
+      // This is a valid non-root node.
       auto wgh = std::make_pair(rctree[i].wgh, edge_index);
-      auto cur = rctree[i].parent;
-      auto new_wgh = std::make_pair(rctree[cur].wgh, rctree[cur].edge_index);
-      while (rctree[cur].parent != cur && new_wgh < wgh) {
-        if (edge_index == 6) {
-          std::cout << "cur = " << cur << " new_wgh = " << new_wgh.first << " " << new_wgh.second << std::endl;
-        }
-        cur = rctree[cur].parent;
-        new_wgh = std::make_pair(rctree[cur].wgh, rctree[cur].edge_index);
+      auto par = rctree[i].parent;
+      auto par_wgh = std::make_pair(rctree[par].wgh, rctree[par].edge_index);
+      // While the parent is not the root, and the parent weight is
+      // smaller than our weight, go to the parent.
+      while (rctree[par].parent != par && par_wgh < wgh) {
+        par = rctree[par].parent;
+        par_wgh = std::make_pair(rctree[par].wgh, rctree[par].edge_index);
       }
-      if (edge_index == 6) {
-        std::cout << "bucket = " << rctree[cur].edge_index << " " << edge_index << std::endl;
-      }
-      bkt_ids[edge_index] = {rctree[cur].edge_index, edge_index};
+      // Sort by initial weight, breaking ties by edge-index.
+      bkt_ids[edge_index] = {rctree[par].edge_index, wgh};
     }
   });
   t.next("Bucket Computation Time");
@@ -90,11 +67,15 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   auto parent = sequence<uintE>::from_function(m, [&](size_t i) { return i; });
   sort_inplace(bkt_ids);
   parallel_for(0, n - 1, [&](size_t i) {
+    // There is a subsequent edge in this bucket---this is our parent.
     if (bkt_ids[i].first == bkt_ids[i + 1].first) {
-      parent[bkt_ids[i].second] = bkt_ids[i + 1].second;
+      parent[bkt_ids[i].second.second] = bkt_ids[i + 1].second.second;
     } else {
+      // If the bucket is a non-root node, assign it to the edge
+      // associated with the bucket (this is the last edge in this
+      // bucket).
       if (bkt_ids[i].first < m) {
-        parent[bkt_ids[i].second] = bkt_ids[i].first;
+        parent[bkt_ids[i].second.second] = bkt_ids[i].first;
       }
     }
   });

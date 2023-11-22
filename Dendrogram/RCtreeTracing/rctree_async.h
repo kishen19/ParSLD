@@ -26,11 +26,12 @@ auto build_rctree_async(Graph& GA) {
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
                       const uintE& ind) {
     edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind};
+    std::cout << "Edge: " << src << " " << dst << " " << wgh << std::endl;
     // ngh's offset in src is ind.
   };
   parallel_for(0, n, [&](uintE u) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
-  });
+  }, 100000000);
   parlay::sort_inplace(edges);
   t.next("Sort edges");
 
@@ -180,6 +181,8 @@ auto build_rctree_async(Graph& GA) {
       neighbors[offsets[cur] + 1] = our_neighbors[1];
 
       // Check which edge is smaller; break ties using the indices.
+      // Set the parent to be the neighbor along the smaller-weight
+      // edge.
       if (std::make_pair(wgh1, edge_index1) <
           std::make_pair(wgh2, edge_index2)) {
         // The edge to 1 is smaller.
@@ -192,6 +195,8 @@ auto build_rctree_async(Graph& GA) {
                                                     edge_index2, wgh2};
         neighbors[offsets[dst2] + index_in_dst2] = {dst1, index_in_dst1,
                                                     edge_index2, wgh2};
+        // Set the parent.
+        rctree[cur].parent = dst1;
       } else {
         rctree[cur].edge_index = edge_index2;
         rctree[cur].wgh = wgh2;
@@ -201,6 +206,8 @@ auto build_rctree_async(Graph& GA) {
                                                     edge_index1, wgh1};
         neighbors[offsets[dst2] + index_in_dst2] = {dst1, index_in_dst1,
                                                     edge_index1, wgh1};
+        // Set the parent.
+        rctree[cur].parent = dst2;
       }
 
       if (pri_greater(dst1, dst2) && deg[dst1]==2) {
@@ -209,13 +216,11 @@ auto build_rctree_async(Graph& GA) {
         // We know that dst1 will be compressed in this super-round,
         // and it has higher priority than dst2, so dst1 will be our
         // parent.
-        rctree[cur].parent = dst1;
         cur = dst1;
       } else if (pri_greater(dst2, dst1) && deg[dst2]==2) {
         gbbs::write_add(&rctree[dst2].parent, 1);
         gbbs::write_max(&rctree[dst2].round, cur_round+1);
         // Ditto, in the other direction.
-        rctree[cur].parent = dst2;
         cur = dst2;
       }
     }

@@ -23,7 +23,7 @@ using ::testing::ElementsAre;
 namespace gbbs {
 
 auto GetGraph(std::string s) {
-  size_t n = 1000;
+  size_t n = 10000;
   size_t k = 14;
   if (s == "path") {
     return gbbs::generate_path_graph<gbbs::intE>(n);
@@ -74,13 +74,9 @@ TEST_P(TestDendrogram, RunAlgorithm) {
 INSTANTIATE_TEST_SUITE_P(
     MyGroup, TestDendrogram,
     testing::Combine(
-        testing::Values("path"),
-        testing::Values("RCtree"),
-        testing::Values("unit_weights")),
-//    testing::Combine(
-//        testing::Values("path", "star", "caterpillar", "fullb", "unifhook"),
-//        testing::Values("ParUF", "RCtree"),
-//        testing::Values("unit_weights", "perm_weights")),
+        testing::Values("path", "star", "caterpillar", "fullb", "unifhook"),
+        testing::Values("ParUF", "RCtree"),
+        testing::Values("unit_weights", "perm_weights")),
     [](const testing::TestParamInfo<TestDendrogram::ParamType>& info) {
       std::string name = std::get<0>(info.param)+std::get<1>(info.param)+std::get<2>(info.param);
       return name;
