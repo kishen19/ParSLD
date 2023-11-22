@@ -23,7 +23,7 @@ using ::testing::ElementsAre;
 namespace gbbs {
 
 auto GetGraph(std::string s) {
-  size_t n = 11;
+  size_t n = 6;
   size_t k = 14;
   if (s == "path") {
     return gbbs::generate_path_graph<gbbs::intE>(n);
@@ -36,6 +36,8 @@ auto GetGraph(std::string s) {
   } else if (s == "unifhook") {
     return gbbs::generate_uniform_hook<gbbs::intE>(n);
   }
+  std::cerr << "Graph type not defined: " << s << std::endl;
+  exit(-1);
 }
 
 class TestDendrogram : public testing::TestWithParam<std::tuple<std::string, std::string, std::string>> {

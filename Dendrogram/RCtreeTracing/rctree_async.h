@@ -26,12 +26,11 @@ auto build_rctree_async(Graph& GA) {
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
                       const uintE& ind) {
     edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind};
-    std::cout << "Edge: " << src << " " << dst << " " << wgh << std::endl;
     // ngh's offset in src is ind.
   };
   parallel_for(0, n, [&](uintE u) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
-  }, 100000000);
+  });
   parlay::sort_inplace(edges);
   t.next("Sort edges");
 
@@ -76,6 +75,7 @@ auto build_rctree_async(Graph& GA) {
 
   t.next("Preprocess (initialize RCTree Nodes and Priorities");
 
+  // TODO: Need to make parallel for high degree nodes
   auto get_neighbor = [&](uintE src) -> edge_info {
     uintE offset = offsets[src];
     uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
@@ -91,6 +91,7 @@ auto build_rctree_async(Graph& GA) {
     exit(-1);
   };
 
+  // TODO: Need to make parallel for high degree nodes
   auto get_both_neighbors = [&](uintE src) -> std::vector<edge_info> {
     uintE offset = offsets[src];
     uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
@@ -166,9 +167,6 @@ auto build_rctree_async(Graph& GA) {
       deg[cur] -= 2;
       auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
-
-      neighbors[offsets[cur]] = our_neighbors[0];
-      neighbors[offsets[cur] + 1] = our_neighbors[1];
 
       // Check which edge is smaller; break ties using the indices.
       // Set the parent to be the neighbor along the smaller-weight
@@ -284,7 +282,7 @@ auto build_rctree_async(Graph& GA) {
     // rt.next("Prepare next round time");
     // std::cout << rem << std::endl;
   }
-  std::cout << "# Rounds = " << round << std::endl;
+  std::cout << "# R/C Rounds = " << round << std::endl;
   t.next("RC Tree Time");
 
   return std::make_tuple(std::move(rctree), std::move(offsets), std::move(neighbors));

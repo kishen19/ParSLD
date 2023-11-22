@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
+auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10, bool debug = false){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, uintE>;
 	// using heap_node = leftist_heap::node<kv>;
@@ -103,9 +103,6 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 				is_ready[cur]++;
 				auto [u, tw1] = uf.find_compress(std::get<0>(edges[2*cur]));
 				auto [v, tw2] = uf.find_compress(std::get<1>(edges[2*cur]));
-				if (u==v){
-					std::cout << "u = " << std::get<0>(edges[2*cur]) << ", v = " << std::get<1>(edges[2*cur]) << std::endl;
-				}
 				parlay::par_do(
 					[&](){heaps[u].delete_min();},
 					[&](){heaps[v].delete_min();}
@@ -161,12 +158,14 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 10){
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;
-	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
-	// for (size_t i=0; i<m; i++){
-    //     std::cout << parent[i] << " ";
-    // }
-    // std::cout << std::endl;
-
+	
+	if (debug){
+		// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
+		for (size_t i=0; i<m; i++){
+		    std::cout << parent[i] << " ";
+		}
+		std::cout << std::endl;
+	}
 	return parent;
 }
 

@@ -7,7 +7,7 @@
 namespace gbbs {
 
 template <class Graph>
-auto DendrogramSeqUF(Graph& GA){
+auto DendrogramSeqUF(Graph& GA, bool debug = false){
 	using W = typename Graph::weight_type;
 
 	timer t;
@@ -43,15 +43,15 @@ auto DendrogramSeqUF(Graph& GA){
 	auto aux = sequence<uintE>(n, n); // extra info required for assigning parents
 	// auto heights = sequence<uintE>(m,0); // Heights of every node in the dendrogram
 
-  size_t total_work = 0;
+  	size_t total_work = 0;
 
 	for(uintE ind = 0; ind < m; ind++){
 		auto i = std::get<1>(proc_edges[ind]);
 		auto [u, tw1] = uf.find_compress(std::get<0>(edges[2*i]));
 		auto [v, tw2] = uf.find_compress(std::get<1>(edges[2*i]));
 		// uintE height = 0;
-    total_work += tw1 + tw2;
-    if (aux[u] < n){
+		total_work += tw1 + tw2;
+		if (aux[u] < n){
 			parent[aux[u]] = i;
 			// height = heights[aux[u]] + 1;
 			aux[u] = n;
@@ -62,20 +62,21 @@ auto DendrogramSeqUF(Graph& GA){
 			aux[v] = n;
 		}
 		auto [w, tw3] = uf.unite(u,v);
-    total_work += tw3;
+		total_work += tw3;
 		aux[w] = i;
 		// heights[i] = height;
-	};
+	}
 	t.next("Dendrogram Time");
-  std::cout << "Total dendrogram work: " << total_work << std::endl;
+	std::cout << "Total dendrogram work: " << total_work << std::endl;
 
-	// for (size_t i=0; i<m; i++){
-    //     std::cout << parent[i] << " ";
-    // }
-    // std::cout << std::endl;
-
+	if (debug){
+		for (size_t i=0; i<m; i++){
+		    std::cout << parent[i] << " ";
+		}
+		std::cout << std::endl;
+	}
 	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
-  return parent;
+  	return parent;
 }
 
 }  // namespace gbbs

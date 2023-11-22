@@ -22,13 +22,14 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 	std::cout << "### n: " << G.n << std::endl;
 	std::cout << "### m: " << G.m << std::endl;
 	std::cout << "### ------------------------------------" << std::endl;
-	assert(P.getOption("-s"));
+	bool debug = P.getOption("-d");
 
+	// Need to decide best value for this
 	uintE num_async_rounds = 10;
-  timer t; t.start();
-	auto parents = DendrogramParUF(G, num_async_rounds);
-  t.stop();
-  double tt = t.total_time();
+	timer t; t.start();
+	auto parents = DendrogramParUF(G, num_async_rounds, debug);
+	t.stop();
+	double tt = t.total_time();
 
 	std::cout << "### Running Time: " << tt << std::endl;
 	return tt;

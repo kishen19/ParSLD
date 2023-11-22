@@ -22,7 +22,6 @@ double Dendrogram_runner(Graph& G, commandLine P) {
   std::cout << "### n: " << G.n << std::endl;
   std::cout << "### m: " << G.m << std::endl;
   std::cout << "### ------------------------------------" << std::endl;
-  assert(P.getOption("-s"));
   bool debug = P.getOption("-d");
 
   timer t; t.start();

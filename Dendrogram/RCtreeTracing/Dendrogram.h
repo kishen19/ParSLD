@@ -26,18 +26,6 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
   auto [rctree, offsets, neighbors] = build_rctree_async(GA);
   t.next("Build RCTree Time");
 
-  // Only need to scan two neighbors since we prepare this
-  // neighbor-list in finish_compress.
-  auto get_both_neighbors = [&](uintE src) -> std::vector<uintE> {
-    uintE offset = offsets[src];
-    std::vector<uintE> ret;
-
-    for (uintE i = 0; i < 2; ++i) {
-      ret.push_back(std::get<0>(neighbors[offset + i]));
-    }
-    return ret;
-  };
-
   if (debug) {
     for (uintE i=0; i<n; i++){
       std::cout << "i: " << i << ", " << ", parent: " << rctree[i].parent << ", edge: " << rctree[i].edge_index << std::endl;

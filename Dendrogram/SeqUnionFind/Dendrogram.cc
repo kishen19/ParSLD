@@ -22,12 +22,12 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 	std::cout << "### n: " << G.n << std::endl;
 	std::cout << "### m: " << G.m << std::endl;
 	std::cout << "### ------------------------------------" << std::endl;
-	// assert(P.getOption("-s"));
+	bool debug = P.getOption("-d");
 
-  timer t; t.start();
-	auto parent_seq = DendrogramSeqUF(G);
-  t.stop();
-  double tt = t.total_time();
+	timer t; t.start();
+	auto parent_seq = DendrogramSeqUF(G, debug);
+	t.stop();
+	double tt = t.total_time();
 
 	std::cout << "### Running Time: " << tt << std::endl;
 	return tt;
