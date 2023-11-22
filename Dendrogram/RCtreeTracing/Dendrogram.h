@@ -38,8 +38,10 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
     return ret;
   };
 
-  for (uintE i=0; i<n; i++){
-    std::cout << "i: " << i << ", round: " << rctree[i].round << ", parent: " << rctree[i].parent << ", edge: " << rctree[i].edge_index << std::endl;
+  if (debug) {
+    for (uintE i=0; i<n; i++){
+      std::cout << "i: " << i << ", " << ", parent: " << rctree[i].parent << ", edge: " << rctree[i].edge_index << std::endl;
+    }
   }
 
   auto bkt_ids = sequence<std::pair<uintE, std::pair<W, uintE>>>::uninitialized(m);

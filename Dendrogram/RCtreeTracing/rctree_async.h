@@ -68,7 +68,6 @@ auto build_rctree_async(Graph& GA) {
     rctree[i].parent = i;
     // to ensure unique buckets, even if the input tree is disconnected
     rctree[i].edge_index = m + i;
-    rctree[i].round = 0;
   });
 
   parlay::random r(42);
@@ -76,7 +75,6 @@ auto build_rctree_async(Graph& GA) {
      n, [&](uintE i) { return r.ith_rand(i); });
 
   t.next("Preprocess (initialize RCTree Nodes and Priorities");
-  uintE round = 0;
 
   auto get_neighbor = [&](uintE src) -> edge_info {
     uintE offset = offsets[src];
@@ -118,7 +116,6 @@ auto build_rctree_async(Graph& GA) {
     if (deg[dst] > 1 || (deg[dst] == 1 && src < dst)) {
       deg[src]--;
       rctree[src].parent = dst;
-      rctree[src].round = round;
       rctree[src].edge_index = edge_index;
       rctree[src].wgh = wgh;
       if (deg[dst] != 1) {
@@ -153,27 +150,20 @@ auto build_rctree_async(Graph& GA) {
     // Check whether we want to compress this node (check neighbor
     // priorities).
     rctree[src].parent = UINT_E_MAX - 3 + static_cast<uint16_t>(pri_greater(src, dst1)) + static_cast<uint16_t>(pri_greater(src, dst2));
-    if (rctree[src].parent == UINT_E_MAX - 1) {
-      // Update the round; finish_compress will check round.
-      rctree[src].round = round;
-    }
   };
 
   // We separate compress and finish_compress here to avoid a
   // race-condition (since src and dst1 could both have compress
   // called on them, e.g., in a path).
-  auto finish_compress = [&](uintE src) -> uintE {
+  auto finish_compress = [&](uintE src) {
     auto cur = src;
-    uintE cur_round = round;
     while (gbbs::atomic_compare_and_swap(&rctree[cur].parent, UINT_E_MAX - 1, UINT_E_MAX)) {
       auto our_neighbors = get_both_neighbors(cur);
       if (our_neighbors.size() != 2) {
-        std::cerr << "Bad compress: cur_round = " << cur_round << " round = " << round << std::endl;
         assert(false);
         exit(-1);
       }
       deg[cur] -= 2;
-      cur_round = rctree[cur].round;
       auto [dst1, index_in_dst1, edge_index1, wgh1] = our_neighbors[0];
       auto [dst2, index_in_dst2, edge_index2, wgh2] = our_neighbors[1];
 
@@ -212,19 +202,16 @@ auto build_rctree_async(Graph& GA) {
 
       if (pri_greater(dst1, dst2) && deg[dst1]==2) {
         gbbs::write_add(&rctree[dst1].parent, 1);
-        gbbs::write_max(&rctree[dst1].round, cur_round+1);
         // We know that dst1 will be compressed in this super-round,
         // and it has higher priority than dst2, so dst1 will be our
         // parent.
         cur = dst1;
       } else if (pri_greater(dst2, dst1) && deg[dst2]==2) {
         gbbs::write_add(&rctree[dst2].parent, 1);
-        gbbs::write_max(&rctree[dst2].round, cur_round+1);
         // Ditto, in the other direction.
         cur = dst2;
       }
     }
-    return cur_round;
   };
 
   auto delayed_n = parlay::delayed_seq<uintE>(n, [&] (uintE i) { return i; });
@@ -233,6 +220,7 @@ auto build_rctree_async(Graph& GA) {
   auto degree_two =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 2; });
   t.next("Before While loop (filters)");
+  size_t round = 0;
   while (degree_one.size() > 0) {
     // timer rt;
     // rt.start();
@@ -251,12 +239,9 @@ auto build_rctree_async(Graph& GA) {
                  [&](uintE i) { compress(degree_two[i]); });
 
      // Async'ly compress the rest of the degree 2 nodes.
-     auto out_rounds = sequence<uintE>::uninitialized(degree_two.size());
      parallel_for(0, degree_two.size(),
-                 [&](uintE i) { out_rounds[i] = finish_compress(degree_two[i]); });
-     round += parlay::reduce_max(out_rounds) + 1;
+                 [&](uintE i) { finish_compress(degree_two[i]); });
    }
-   // round++;
    // rt.next("Compress time");
 
     // Rake
