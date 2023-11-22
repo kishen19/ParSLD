@@ -23,9 +23,9 @@ double Dendrogram_runner(Graph& G, commandLine P) {
 	std::cout << "### m: " << G.m << std::endl;
 	std::cout << "### ------------------------------------" << std::endl;
 	bool debug = P.getOption("-d");
+	uintE num_async_rounds = P.getOptionLongValue("-num_async_rounds", 100);
 
 	// Need to decide best value for this
-	uintE num_async_rounds = 10;
 	timer t; t.start();
 	auto parents = DendrogramParUF(G, num_async_rounds, debug);
 	t.stop();

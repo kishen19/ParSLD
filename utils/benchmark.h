@@ -21,6 +21,16 @@ void apply_weights(
       auto [u, v, wgh] = edges.E[i];
       edges.E[i] = {u, v, A[i] + 1};
     });
+  } else if (cmd_line.getOption("-low_parallelism")){
+    auto m = edges.size();
+    parlay::parallel_for(0, m, [&] (size_t i) {
+      auto [u, v, wgh] = edges.E[i];
+      if (i < m/2){
+        edges.E[i] = {u, v, i};
+      } else {
+        edges.E[i] = {u, v, m-1-i+m/2};
+      }
+    });
   }
 }
 }  // namespace gbbs
