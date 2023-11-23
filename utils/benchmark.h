@@ -47,6 +47,21 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
       uintE deg_v = GA.get_vertex(v).out_degree();
       edges.E[i] = {u, v, 1.0f/(deg_u + deg_v)};
     });
+  } else if (cmd_line.getOption("-triangle_weights")) {
+     // TODO: compute jaccard instead of doing the intersection.
+     parlay::parallel_for(0, edges.size(), [&](size_t i) {
+      auto [u, v, wgh] = edges.E[i];
+      auto v_neighbors = GA.get_vertex(v).out_neighbors();
+      size_t ct;
+      using vertex = typename Graph::vertex;
+      if constexpr (std::is_same<vertex, gbbs::symmetric_vertex<gbbs::empty>>()) {
+        auto f = [&] () {};
+        ct = std::max(GA.get_vertex(u).out_neighbors().intersect(&v_neighbors), (size_t)1);
+      } else {
+        ct = 1;
+      }
+      edges.E[i] = {u, v, 1.0f/ct};
+    });
   }
 }
 
