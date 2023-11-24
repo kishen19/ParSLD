@@ -54,6 +54,7 @@ cc_library(
     hdrs = ["benchmark.h"],
     deps = [
         "@gbbs//gbbs",
+        "@gbbs//benchmarks/TriangleCounting/ShunTangwongsan15:Triangle",
         "@gbbs//gbbs:graph_io",
         ":generate_MSF",
         ":caterpillar",

@@ -11,6 +11,8 @@
 #include "star.h"
 #include "uniform_hook.h"
 
+#include "benchmarks/TriangleCounting/ShunTangwongsan15/Triangle.h"
+
 namespace gbbs {
 
 template <class W, class P>
@@ -36,6 +38,61 @@ void apply_weights(gbbs::edge_array<W>& edges, P& cmd_line) {
   }
 }
 
+
+// Counts the number of triangles in the input graph.
+//
+// Implementation note: this converts the input graph to a directed graph in
+// which we point edges from lower-degree vertices to higher-degree vertices,
+// hence the function name.
+//
+// Arguments:
+//   G
+//     Graph on which we'll count triangles.
+//   f: (uintE, uintE, uintE) -> void
+//     Function that's run each triangle. On a triangle with vertices {u, v, w},
+//     we run `f(u, v, w)`.
+//
+// Returns:
+//   The number of triangles in `G`.
+template <class Graph, class F>
+auto Triangle_EmitWeightedEdges(Graph& G, const F& f) {
+  using W = typename Graph::weight_type;
+  timer gt;
+  gt.start();
+  uintT n = G.n;
+  auto counts = sequence<size_t>::uninitialized(n);
+  parallel_for(0, n, kDefaultGranularity, [&](size_t i) { counts[i] = 0; });
+
+  // 1. Rank vertices based on degree
+  timer rt;
+  rt.start();
+  uintE* rank = rankNodes(G, G.n);
+  rt.stop();
+  rt.next("rank time");
+
+  // 2. Direct edges to point from lower to higher rank vertices.
+  // Note that we currently only store out-neighbors for this graph to save
+  // memory.
+  auto pack_predicate = [&](const uintE& u, const uintE& v, const W& wgh) {
+    return rank[u] < rank[v];
+  };
+  auto DG = filterGraph(G, pack_predicate);
+  // auto DG = Graph::filterGraph(G, pack_predicate);
+  gt.stop();
+  gt.next("build graph time");
+
+  // 3. Count triangles on the digraph
+  timer ct;
+  ct.start();
+
+  size_t count = CountDirectedBalanced(DG, counts.begin(), f);
+  std::cout << "### Num triangles = " << count << "\n";
+  ct.stop();
+  ct.next("count time");
+  gbbs::free_array(rank, G.n);
+  return count;
+}
+
 template <class P, class Graph>
 void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
                               P& cmd_line) {
@@ -48,6 +105,37 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
       edges.E[i] = {u, v, 1.0f/(deg_u + deg_v)};
     });
   } else if (cmd_line.getOption("-triangle_weights")) {
+
+    using K=std::pair<uintE, uintE>;
+    using V = uintE;
+    size_t m = GA.m/2;
+    std::tuple<K, V> empty = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), 0);
+    auto hash_func = [] (K k) -> size_t {
+      auto [u, v] = k;
+      return parlay::hash64((u << 32UL) | (size_t)v);
+    };
+    auto table = gbbs::make_sparse_table<K, V>(2*m, empty, hash_func, 1.1);
+
+    size_t n = GA.n;
+    using W = typename Graph::weight_type;
+    timer t; t.start();
+    parlay::parallel_for(0, n, [&] (size_t i) {
+      auto map_f = [&] (uintE u, uintE v, W wgh) {
+        if (u < v) {
+          K k = {u, v};
+          V v = 0;
+          table.insert(std::make_tuple(k, v));
+        }
+      };
+      GA.get_vertex(i).out_neighbors().map(map_f);
+    }, 1);
+    t.next("insert time");
+    std::cout << "Finished building initial table." << std::endl;
+
+    auto f = [&] (uintE u, uintE v, uintE w) {};
+    size_t ct = Triangle_EmitWeightedEdges(GA, f);
+    t.next("count time");
+    std::cout << "ct = " << ct << std::endl;
      // TODO: compute jaccard instead of doing the intersection.
      parlay::parallel_for(0, edges.size(), [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
