@@ -38,7 +38,6 @@ void apply_weights(gbbs::edge_array<W>& edges, P& cmd_line) {
   }
 }
 
-
 // Counts the number of triangles in the input graph.
 //
 // Implementation note: this converts the input graph to a directed graph in
@@ -98,53 +97,59 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
                               P& cmd_line) {
   apply_weights(edges, cmd_line);
   if (cmd_line.getOption("-inv_deg_weights")) {
-     parlay::parallel_for(0, edges.size(), [&](size_t i) {
+    parlay::parallel_for(0, edges.size(), [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
       uintE deg_u = GA.get_vertex(u).out_degree();
       uintE deg_v = GA.get_vertex(v).out_degree();
-      edges.E[i] = {u, v, 1.0f/(deg_u + deg_v)};
+      edges.E[i] = {u, v, 1.0f / (deg_u + deg_v)};
     });
   } else if (cmd_line.getOption("-triangle_weights")) {
 
-    using K=std::pair<uintE, uintE>;
+    using K = std::pair<uintE, uintE>;
     using V = size_t;
-    size_t m = GA.m/2;
-    std::tuple<K, V> empty = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), 0);
-    auto hash_func = [] (K k) -> size_t {
+    size_t m = GA.m / 2;
+    std::tuple<K, V> empty =
+       std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), 0);
+    auto hash_func = [](K k) -> size_t {
       auto [u, v] = k;
-      return parlay::hash64((static_cast<size_t>(u) << 32UL) | static_cast<size_t>(v));
+      return parlay::hash64((static_cast<size_t>(u) << 32UL) |
+                            static_cast<size_t>(v));
     };
     std::cout << "Creating table." << std::endl;
-    auto table = gbbs::make_sparse_table<K, V>(1.25*m, empty, hash_func, 1.1);
+    auto table = gbbs::make_sparse_table<K, V>(1.25 * m, empty, hash_func, 1.1);
     std::cout << "Created table, inserting." << std::endl;
 
     size_t n = GA.n;
     using W = typename Graph::weight_type;
-    timer t; t.start();
-    parlay::parallel_for(0, n, [&] (size_t i) {
-      auto map_f = [&] (uintE u, uintE v, W wgh) {
-        if (u < v) {
-          K k = {u, v};
-          V v = 0;
-          table.insert(std::make_tuple(k, v));
-        }
-      };
-      GA.get_vertex(i).out_neighbors().map(map_f);
-    }, 1);
+    timer t;
+    t.start();
+    parlay::parallel_for(
+       0, n,
+       [&](size_t i) {
+         auto map_f = [&](uintE u, uintE v, W wgh) {
+           if (u < v) {
+             K k = {u, v};
+             V v = 0;
+             table.insert(std::make_tuple(k, v));
+           }
+         };
+         GA.get_vertex(i).out_neighbors().map(map_f);
+       },
+       1);
     t.next("insert time");
     std::cout << "Finished building initial table." << std::endl;
 
     using KV = std::tuple<K, V>;
-    auto ins_f = [&] (V* v, KV& kv) {
+    auto ins_f = [&](V* v, KV& kv) {
       gbbs::write_add(v, 1);
     };
 
-    auto f = [&] (uintE u, uintE v, uintE w) {
+    auto f = [&](uintE u, uintE v, uintE w) {
       uintE s[3];
       s[0] = u;
       s[1] = v;
       s[2] = w;
-      std::sort(s, s+3);
+      std::sort(s, s + 3);
 
       K k1 = {s[0], s[1]};
       K k2 = {s[0], s[2]};
@@ -159,8 +164,8 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
     std::cout << "ct = " << ct << std::endl;
     parlay::parallel_for(0, edges.size(), [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
-      float cnt = table.find(std::make_pair(u,v), 1);
-      edges.E[i] = {u, v, 1.0f/ct};
+      float cnt = table.find(std::make_pair(u, v), 1);
+      edges.E[i] = {u, v, 1.0f / cnt};
     });
   }
 }
@@ -280,7 +285,7 @@ gbbs::edge_array<W> to_edges(Graph& GA) {
         if (is_forest) {                                                       \
           run_app(G, APP, mutates, rounds)                                     \
         } else {                                                               \
-          auto MSF = generate_MSF(G);                                          \
+          auto MSF = generate_MSF(G, P);                                       \
           run_app(MSF, APP, mutates, rounds)                                   \
         }                                                                      \
       } else {                                                                 \
@@ -289,7 +294,7 @@ gbbs::edge_array<W> to_edges(Graph& GA) {
         if (is_forest) {                                                       \
           run_app(G, APP, mutates, rounds)                                     \
         } else {                                                               \
-          auto MSF = generate_MSF(G);                                          \
+          auto MSF = generate_MSF(G, P);                                       \
           run_app(MSF, APP, mutates, rounds)                                   \
         }                                                                      \
       }                                                                        \
@@ -303,27 +308,25 @@ gbbs::edge_array<W> to_edges(Graph& GA) {
         auto G_o =                                                             \
            gbbs::gbbs_io::read_compressed_symmetric_graph<gbbs::empty>(iFile,  \
                                                                        mmap);  \
-        auto edges = gbbs::to_edges<float>(G_o);                                            \
+        auto edges = gbbs::to_edges<float>(G_o);                               \
         apply_weights_with_graph(edges, G_o, P);                               \
-        auto G =                                                               \
-           gbbs::gbbs_io::edge_list_to_symmetric_graph<float>(edges);     \
+        auto G = gbbs::gbbs_io::edge_list_to_symmetric_graph<float>(edges);    \
         if (is_forest) {                                                       \
           run_app(G, APP, mutates, rounds)                                     \
         } else {                                                               \
-          auto MSF = generate_MSF(G);                                          \
+          auto MSF = generate_MSF(G, P);                                       \
           run_app(MSF, APP, mutates, rounds)                                   \
         }                                                                      \
       } else {                                                                 \
         auto G_o = gbbs::gbbs_io::read_unweighted_symmetric_graph(iFile, mmap, \
                                                                   binary);     \
-        auto edges = gbbs::to_edges<float>(G_o);                                            \
+        auto edges = gbbs::to_edges<float>(G_o);                               \
         apply_weights_with_graph(edges, G_o, P);                               \
-        auto G =                                                               \
-           gbbs::gbbs_io::edge_list_to_symmetric_graph<float>(edges);     \
+        auto G = gbbs::gbbs_io::edge_list_to_symmetric_graph<float>(edges);    \
         if (is_forest) {                                                       \
           run_app(G, APP, mutates, rounds)                                     \
         } else {                                                               \
-          auto MSF = generate_MSF(G);                                          \
+          auto MSF = generate_MSF(G, P);                                       \
           run_app(MSF, APP, mutates, rounds)                                   \
         }                                                                      \
       }                                                                        \
