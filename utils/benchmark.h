@@ -107,14 +107,16 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
   } else if (cmd_line.getOption("-triangle_weights")) {
 
     using K=std::pair<uintE, uintE>;
-    using V = uintE;
+    using V = size_t;
     size_t m = GA.m/2;
     std::tuple<K, V> empty = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), 0);
     auto hash_func = [] (K k) -> size_t {
       auto [u, v] = k;
       return parlay::hash64((static_cast<size_t>(u) << 32UL) | static_cast<size_t>(v));
     };
-    auto table = gbbs::make_sparse_table<K, V>(4*m, empty, hash_func, 1.1);
+    std::cout << "Creating table." << std::endl;
+    auto table = gbbs::make_sparse_table<K, V>(1.25*m, empty, hash_func, 1.1);
+    std::cout << "Created table, inserting." << std::endl;
 
     size_t n = GA.n;
     using W = typename Graph::weight_type;
@@ -132,22 +134,32 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
     t.next("insert time");
     std::cout << "Finished building initial table." << std::endl;
 
-    auto f = [&] (uintE u, uintE v, uintE w) {};
+    using KV = std::tuple<K, V>;
+    auto ins_f = [&] (V* v, KV& kv) {
+      gbbs::write_add(v, 1);
+    };
+
+    auto f = [&] (uintE u, uintE v, uintE w) {
+      uintE s[3];
+      s[0] = u;
+      s[1] = v;
+      s[2] = w;
+      std::sort(s, s+3);
+
+      K k1 = {s[0], s[1]};
+      K k2 = {s[0], s[2]};
+      K k3 = {s[1], s[2]};
+      V val = 1;
+      table.insert_f(std::make_tuple(k1, val), ins_f);
+      table.insert_f(std::make_tuple(k2, val), ins_f);
+      table.insert_f(std::make_tuple(k3, val), ins_f);
+    };
     size_t ct = Triangle_EmitWeightedEdges(GA, f);
     t.next("count time");
     std::cout << "ct = " << ct << std::endl;
-     // TODO: compute jaccard instead of doing the intersection.
-     parlay::parallel_for(0, edges.size(), [&](size_t i) {
+    parlay::parallel_for(0, edges.size(), [&](size_t i) {
       auto [u, v, wgh] = edges.E[i];
-      auto v_neighbors = GA.get_vertex(v).out_neighbors();
-      size_t ct;
-      using vertex = typename Graph::vertex;
-      if constexpr (std::is_same<vertex, gbbs::symmetric_vertex<gbbs::empty>>()) {
-        auto f = [&] () {};
-        ct = std::max(GA.get_vertex(u).out_neighbors().intersect(&v_neighbors), (size_t)1);
-      } else {
-        ct = 1;
-      }
+      float cnt = table.find(std::make_pair(u,v), 1);
       edges.E[i] = {u, v, 1.0f/ct};
     });
   }
