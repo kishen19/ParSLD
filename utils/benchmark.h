@@ -112,9 +112,9 @@ void apply_weights_with_graph(gbbs::edge_array<float>& edges, Graph& GA,
     std::tuple<K, V> empty = std::make_tuple(std::make_pair(UINT_E_MAX, UINT_E_MAX), 0);
     auto hash_func = [] (K k) -> size_t {
       auto [u, v] = k;
-      return parlay::hash64((u << 32UL) | (size_t)v);
+      return parlay::hash64((static_cast<size_t>(u) << 32UL) | static_cast<size_t>(v));
     };
-    auto table = gbbs::make_sparse_table<K, V>(2*m, empty, hash_func, 1.1);
+    auto table = gbbs::make_sparse_table<K, V>(4*m, empty, hash_func, 1.1);
 
     size_t n = GA.n;
     using W = typename Graph::weight_type;

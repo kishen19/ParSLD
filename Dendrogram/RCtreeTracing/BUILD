@@ -69,6 +69,14 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "test",
+    srcs = ["test.cc"],
+    deps = [
+        "//utils:benchmark",
+    ],
+)
+
 package(
     default_visibility = ["//visibility:public"],
 )
