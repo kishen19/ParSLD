@@ -8,19 +8,19 @@
 
 namespace gbbs {
 
-template <class Graph>
+template <class IdType, class Graph>
 auto build_rctree_async(Graph& GA) {
   using W = typename Graph::weight_type;
 
   timer t;
   t.start();
-  auto n = GA.n;
-  auto m = GA.m / 2;
+  size_t n = GA.n;
+  size_t m = GA.m / 2;
 
   // Stores the degrees as nodes are peeled.
-  auto deg = sequence<uintE>::from_function(
+  auto deg = sequence<IdType>::from_function(
      n, [&](uintE u) { return GA.get_vertex(u).out_degree(); });
-  auto edges = sequence<std::tuple<uintE, uintE, uintE>>::uninitialized(2 * m);
+  auto edges = sequence<std::tuple<uintE, uintE, IdType>>::uninitialized(2 * m);
 
   auto offsets = parlay::scan(deg).first;
   auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
@@ -43,14 +43,16 @@ auto build_rctree_async(Graph& GA) {
   // - weight of the edge (redundant, but saves a cache miss)
   auto neighbors = parlay::sequence<edge_info>::uninitialized(2*m);
 
-  parlay::parallel_for(0, m, [&](uintE i) {
+  parlay::parallel_for(0, m, [&](size_t i) {
        auto [u, v, ind1] = edges[2*i];
        auto [_u, _v, ind2] = edges[2*i+1];
+       assert(u < v);
 
        auto [_, wgh] = GA.get_vertex(u).out_neighbors().get_ith_neighbor(ind1-offsets[u]);
        // smaller of the two inds corresponds to the smaller vertex
        // id.
        // G.get_vertex(u).get_ith_neighbor(ind1)
+
        neighbors[ind1] = {v, ind2-offsets[v], i, wgh};
        neighbors[ind2] = {u, ind1-offsets[u], i, wgh};
   });
@@ -71,14 +73,14 @@ auto build_rctree_async(Graph& GA) {
 
   parlay::random r(42);
   auto priorities = sequence<uint64_t>::from_function(
-     n, [&](uintE i) { return r.ith_rand(i); });
+     n, [&](size_t i) { return r.ith_rand(i); });
 
   t.next("Preprocess (initialize RCTree Nodes and Priorities");
 
   // TODO: Need to make parallel for high degree nodes
   auto get_neighbor = [&](uintE src) -> edge_info {
-    uintE offset = offsets[src];
-    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
+    size_t offset = offsets[src];
+    size_t deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
 
     for (uintE i = 0; i < deg; ++i) {
       if (std::get<0>(neighbors[offset + i]) != UINT_E_MAX) {
@@ -93,8 +95,8 @@ auto build_rctree_async(Graph& GA) {
 
   // TODO: Need to make parallel for high degree nodes
   auto get_both_neighbors = [&](uintE src) -> std::vector<edge_info> {
-    uintE offset = offsets[src];
-    uintE deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
+    size_t offset = offsets[src];
+    size_t deg = ((src == n - 1) ? (2 * m) : offsets[src + 1]) - offset;
     std::vector<edge_info> ret;
 
     for (uintE i = 0; i < deg; ++i) {
@@ -131,6 +133,9 @@ auto build_rctree_async(Graph& GA) {
 
   auto pri_greater = [&] (uintE src, uintE dst) {
     uintE deg_dst = deg[dst];
+    if (priorities[src] == priorities[dst]) {
+      return deg_dst != 2 || (src > dst);
+    }
     return deg_dst != 2 || (priorities[src] > priorities[dst]);
   };
 
@@ -230,24 +235,26 @@ auto build_rctree_async(Graph& GA) {
     std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
     std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
 
+    timer rt; rt.start();
    // Compress
    if (degree_two.size() > 0) {
      // Identify an independent set of degree 2 nodes to compress
      parallel_for(0, degree_two.size(),
                  [&](uintE i) { compress(degree_two[i]); });
+     std::cout << "Finished first step of compress" << std::endl;
 
      // Async'ly compress the rest of the degree 2 nodes.
      parallel_for(0, degree_two.size(),
                  [&](uintE i) { finish_compress(degree_two[i]); });
    }
-   // rt.next("Compress time");
+   rt.next("Compress time");
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
       auto outp = rake_f(degree_one[i]);
       degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
-    // rt.next("Rake time");
+    rt.next("Rake time");
 
     parlay::sort_inplace(parlay::make_slice(degree_one));
     auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](uintE i) {

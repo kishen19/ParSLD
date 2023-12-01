@@ -11,8 +11,8 @@
 namespace gbbs {
 
 // GA is the weighted input tree.
-template <class Graph>
-auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
+template <class IdType, class Graph>
+auto DendrogramRCtreeTracing_impl(Graph& GA, bool debug = false) {
   using W = typename Graph::weight_type;
 
   timer t;
@@ -23,7 +23,7 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
 
   //auto rctree = build_rctree_ht(GA);
   // auto rctree = build_rctree_crosslink(GA);
-  auto [rctree, offsets, neighbors] = build_rctree_async(GA);
+  auto [rctree, offsets, neighbors] = build_rctree_async<IdType>(GA);
   t.next("Build RCTree Time");
 
   if (debug) {
@@ -78,6 +78,16 @@ auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
     std::cout << std::endl;
   }
   return parent;
+}
+
+// GA is the weighted input tree.
+template <class Graph>
+auto DendrogramRCtreeTracing(Graph& GA, bool debug = false) {
+  if (GA.n >= std::numeric_limits<int32_t>::max()) {
+    return DendrogramRCtreeTracing_impl<size_t>(GA, debug);
+  } else {
+    return DendrogramRCtreeTracing_impl<uint32_t>(GA, debug);
+  }
 }
 
 }   // namespace gbbs
