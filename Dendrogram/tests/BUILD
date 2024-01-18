@@ -9,6 +9,8 @@ gbbs_cc_test(
         "//Dendrogram/SeqUnionFind:Dendrogram",
         "//Dendrogram/ParUnionFind:Dendrogram",
         "//Dendrogram/RCtreeTracing:Dendrogram",
+        "//Dendrogram/SeqCartesianTree:Dendrogram",
+        "//Dendrogram/ParCartesianTree:Dendrogram",
         "//utils:generate_MSF",
         "//utils:caterpillar",
         "//utils:path",

@@ -51,6 +51,9 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
 	auto proc_edges = sequence<std::pair<W,uintE>>::from_function(m, [&](size_t i){
 		return std::make_pair(std::get<2>(edges[2*i]), i);
 	});
+//  for (size_t i=0; i<proc_edges.size(); ++i) {
+//    std::cout << std::get<0>(edges[2*i]) << " " << std::get<1>(edges[2*i]) << " " << std::get<2>(edges[2*i]) << " i = " << i << std::endl;
+//  }
 	parlay::sort_inplace(proc_edges);
 	t.next("Sorting Edges Time");
 

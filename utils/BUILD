@@ -41,11 +41,21 @@ cc_library(
 )
 
 cc_library(
+    name = "graph_io",
+    hdrs = ["graph_io.h"],
+    deps = [
+        "@gbbs//gbbs",
+    ],
+)
+
+cc_library(
     name = "generate_MSF",
     hdrs = ["generate_MSF.h"],
     deps = [
+        ":graph_io",
         "@gbbs//gbbs",
         "@gbbs//benchmarks/MinimumSpanningForest/Boruvka:MinimumSpanningForest",
+        "@gbbs//benchmarks/MinimumSpanningForest/Kruskal:MinimumSpanningForest",
     ],
 )
 
@@ -56,8 +66,9 @@ cc_library(
         "@gbbs//gbbs",
         "@gbbs//benchmarks/TriangleCounting/ShunTangwongsan15:Triangle",
         "@gbbs//gbbs:graph_io",
-        ":generate_MSF",
         ":caterpillar",
+        ":generate_MSF",
+        ":graph_io",
         ":path",
         ":star",
         ":full_binary",

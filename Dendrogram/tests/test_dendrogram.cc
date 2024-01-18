@@ -1,6 +1,8 @@
 #include "Dendrogram/SeqUnionFind/Dendrogram.h"
 #include "Dendrogram/ParUnionFind/Dendrogram.h"
 #include "Dendrogram/RCtreeTracing/Dendrogram.h"
+#include "Dendrogram/SeqCartesianTree/Dendrogram.h"
+#include "Dendrogram/ParCartesianTree/Dendrogram.h"
 
 #include <unordered_set>
 
@@ -43,6 +45,9 @@ auto GetGraph(std::string s) {
 class TestDendrogram : public testing::TestWithParam<std::tuple<std::string, std::string, std::string>> {
 };
 
+class TestCartesianTree : public testing::TestWithParam<std::tuple<std::string, std::string>> {
+};
+
 void apply_weights(
     gbbs::edge_array<gbbs::intE>& edges, std::string opt) {
   if (opt == "perm_weights") {
@@ -73,6 +78,29 @@ TEST_P(TestDendrogram, RunAlgorithm) {
   }
 }
 
+TEST_P(TestCartesianTree, RunAlgorithm) {
+  auto E = GetGraph("path");
+  apply_weights(E, std::get<1>(GetParam()));
+  auto G = gbbs_io::edge_list_to_symmetric_graph<gbbs::intE>(E);
+  auto parents_seq = DendrogramSeqUF(G);
+  std::cout << "Generated parents!" << std::endl;
+  parlay::sequence<uintE> parents_par;
+  if (std::get<1>(GetParam()) == "ParUF") {
+    parents_par = DendrogramParUF(G, 10);
+  } else if (std::get<0>(GetParam()) == "RCtree") {
+    parents_par = DendrogramRCtreeTracing(G);
+  } else if (std::get<0>(GetParam()) == "SeqCartesianTree") {
+    parents_par = SeqCartesianTree_runner(G);
+  } else if (std::get<0>(GetParam()) == "ParCartesianTree") {
+    parents_par = ParCartesianTree_runner(G);
+  }
+  std::cout << "Generated parents_par!" << std::endl;
+  EXPECT_EQ(parents_seq.size(), parents_par.size());
+  for (size_t i=0; i<parents_seq.size(); ++i) {
+    EXPECT_EQ(parents_seq[i], parents_par[i]) << " index: " << i;
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(
     MyGroup, TestDendrogram,
     testing::Combine(
@@ -83,5 +111,16 @@ INSTANTIATE_TEST_SUITE_P(
       std::string name = std::get<0>(info.param)+std::get<1>(info.param)+std::get<2>(info.param);
       return name;
     });
+
+INSTANTIATE_TEST_SUITE_P(
+    MyGroup, TestCartesianTree,
+    testing::Combine(
+        testing::Values("SeqCartesianTree", "ParCartesianTree"),
+        testing::Values("perm_weights")),
+    [](const testing::TestParamInfo<TestCartesianTree::ParamType>& info) {
+      std::string name = std::get<0>(info.param)+std::get<1>(info.param);
+      return name;
+    });
+
 
 }  // namespace gbbs

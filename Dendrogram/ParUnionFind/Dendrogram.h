@@ -8,8 +8,8 @@
 
 namespace gbbs {
 
-template <class Graph>
-auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false){
+template <class IdType, class Graph>
+auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = false){
 	using W = typename Graph::weight_type;
 	using kv = std::pair<W, uintE>;
 	// using heap_node = leftist_heap::node<kv>;
@@ -25,13 +25,13 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 	// Step 1: Preprocess
 	// Index the Edges
 	auto n = GA.n; auto m = GA.m/2;
-	auto offsets = sequence<uintE>::from_function(
+	auto offsets = sequence<IdType>::from_function(
 		n, [&](uintE u) { return GA.get_vertex(u).out_degree(); });
 	parlay::scan_inplace(offsets);
 
-	auto edges = sequence<std::tuple<uintE, uintE, uintE, W>>::uninitialized(2 * m);
+	auto edges = sequence<std::tuple<uintE, uintE, IdType, W>>::uninitialized(2 * m);
 	auto offset_f = [&](const uintE& src, const uintE& dst, const W& wgh,
-						const uintE& ind) {
+						const IdType& ind) {
 		edges[offsets[src] + ind] = {std::min(src, dst), std::max(src, dst), offsets[src] + ind, wgh};
 		// ngh's offset in src is ind.
 	};
@@ -47,7 +47,7 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 	// - edge_index of this edge (the original identity of this edge)
 	auto neighbors = parlay::sequence<kv>::uninitialized(2*m);
 
-	parlay::parallel_for(0, m, [&](uintE i) {
+	parlay::parallel_for(0, m, [&](IdType i) {
 		auto [u, v, ind1, wgh] = edges[2*i];
 		auto [_u, _v, ind2, _wgh] = edges[2*i+1];
 		// auto [_, wgh] = GA.get_vertex(u).out_neighbors().get_ith_neighbor(ind1-offsets[u]);
@@ -60,10 +60,10 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 	// Step 2: Initialize (Leftist/Skew/Pairing/Block) Heaps and Union Find
 	auto heaps = sequence<heap>::uninitialized(n);
 	auto nodes = sequence<heap_node>::uninitialized(2*m);
-    parallel_for(0, n, [&](uintE i){
+    parallel_for(0, n, [&](IdType i){
 		auto start = offsets[i];
 		auto end = (i == n-1)? 2*m : offsets[i+1];
-		parallel_for(0, end-start, [&](uintE j){
+		parallel_for(0, end-start, [&](IdType j){
 			nodes[start + j].init(neighbors[start+j]);
 		});
 		heaps[i].init(nodes.begin()+start, end-start);
@@ -83,10 +83,10 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 
 	//Step 4: Apply Union-Find in (sync) rounds, processing local minima edges in each round
 	auto uf = union_find(n);
-	auto parent = sequence<uintE>::from_function(m, 
+	auto parent = sequence<uintE>::from_function(m,
 		[&](uintE i){ return i; }); //Output Dendrogram
 	// auto heights = sequence<uintE>(m,0);
-	auto proc_edges = parlay::filter(parlay::iota<uintE>(m), 
+	auto proc_edges = parlay::filter(parlay::iota<uintE>(m),
 		[&](size_t i){ return is_ready[i]==2; });
 	auto num = proc_edges.size();
 	uintE num_iters = 0;
@@ -134,12 +134,12 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 		});
 		proc_edges = parlay::filter(proc_edges, [&](auto i){return (i != m);});
 		num = proc_edges.size();
-		// std::cout << "num = " << num  << std::endl;
+		std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
 	t.next("Dendrogram Stage 1 Time");
 	if (num > 0){
-		auto rem_edges = parlay::filter(parlay::iota<uintE>(m), 
+		auto rem_edges = parlay::filter(parlay::iota<uintE>(m),
 			[&](uintE i){ return is_ready[i] < 3; });
 		sort_inplace(rem_edges, [&](auto e1, auto e2){
 			auto p1 = std::make_pair(std::get<3>(edges[2*e1]), e1);
@@ -158,7 +158,8 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;
-	
+  std::cout << "Height = " << (num_iters + num) << std::endl;
+
 	if (debug){
 		// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 		for (size_t i=0; i<m; i++){
@@ -167,6 +168,15 @@ auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false
 		std::cout << std::endl;
 	}
 	return parent;
+}
+
+template <class Graph>
+auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false) {
+  if (GA.n >= std::numeric_limits<int32_t>::max()) {
+    return DendrogramParUF_impl<size_t>(GA, num_async_rounds, debug);
+  } else {
+    return DendrogramParUF_impl<uint32_t>(GA, num_async_rounds, debug);
+  }
 }
 
 }  // namespace gbbs
