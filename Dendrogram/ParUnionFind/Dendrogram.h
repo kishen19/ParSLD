@@ -39,7 +39,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
 	});
 	parlay::sort_inplace(edges);
-	t.next("Sort edges");
+//	t.next("Sort edges");
 
 	// Neighbors of vertex i at offsets[i] -- offsets[i+1]:
 	// We store:
@@ -55,7 +55,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		neighbors[ind1] = {wgh, i};
 		neighbors[ind2] = {wgh, i};
 	});
-	t.next("Initialize Neighbors pairs");
+//	t.next("Initialize Neighbors pairs");
 
 	// Step 2: Initialize (Leftist/Skew/Pairing/Block) Heaps and Union Find
 	auto heaps = sequence<heap>::uninitialized(n);
@@ -68,7 +68,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		});
 		heaps[i].init(nodes.begin()+start, end-start);
     });
-	t.next("Heap Init Time");
+//	t.next("Heap Init Time");
 
 	// Step 3: Find initial "local minimum" edges
 	// is_ready[ind] = 2 => edge is a local minimum
@@ -79,7 +79,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 			gbbs::write_add(&is_ready[min_elem.second], 1);
 		}
 	});
-	t.next("Is_Ready Time");
+	t.next("Preprocessing");
 
 	//Step 4: Apply Union-Find in (sync) rounds, processing local minima edges in each round
 	auto uf = union_find(n);
@@ -90,7 +90,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		[&](size_t i){ return is_ready[i]==2; });
 	auto num = proc_edges.size();
 	uintE num_iters = 0;
-	std::cout << "num = " << num << ", num_async_rounds = " << num_async_rounds << std::endl;
+	// std::cout << "num = " << num << ", num_async_rounds = " << num_async_rounds << std::endl;
 	while (num > 0){
 		if (num == 1){
 			is_ready[proc_edges[0]] = 2;
@@ -134,7 +134,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		});
 		proc_edges = parlay::filter(proc_edges, [&](auto i){return (i != m);});
 		num = proc_edges.size();
-		std::cout << "num = " << num  << std::endl;
+		// std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
 	t.next("Dendrogram Stage 1 Time");
