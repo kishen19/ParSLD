@@ -39,7 +39,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
 	});
 	parlay::sort_inplace(edges);
-//	t.next("Sort edges");
+	//	t.next("Sort edges");
 
 	// Neighbors of vertex i at offsets[i] -- offsets[i+1]:
 	// We store:
@@ -55,20 +55,20 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		neighbors[ind1] = {wgh, i};
 		neighbors[ind2] = {wgh, i};
 	});
-//	t.next("Initialize Neighbors pairs");
+	//	t.next("Initialize Neighbors pairs");
 
 	// Step 2: Initialize (Leftist/Skew/Pairing/Block) Heaps and Union Find
 	auto heaps = sequence<heap>::uninitialized(n);
 	auto nodes = sequence<heap_node>::uninitialized(2*m);
-    parallel_for(0, n, [&](IdType i){
+	parallel_for(0, n, [&](IdType i){
 		auto start = offsets[i];
 		auto end = (i == n-1)? 2*m : offsets[i+1];
 		parallel_for(0, end-start, [&](IdType j){
 			nodes[start + j].init(neighbors[start+j]);
 		});
 		heaps[i].init(nodes.begin()+start, end-start);
-    });
-//	t.next("Heap Init Time");
+	});
+	//	t.next("Heap Init Time");
 
 	// Step 3: Find initial "local minimum" edges
 	// is_ready[ind] = 2 => edge is a local minimum
@@ -158,12 +158,12 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 
 	std::cout << "Remaining Edges = " << num << std::endl;
 	std::cout << "Num Iters = " << num_iters << std::endl;
-  std::cout << "Height = " << (num_iters + num) << std::endl;
+  	std::cout << "Height = " << (num_iters + num) << std::endl;
 
 	if (debug){
 		// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 		for (size_t i=0; i<m; i++){
-		    std::cout << parent[i] << " ";
+			std::cout << parent[i] << " ";
 		}
 		std::cout << std::endl;
 	}
@@ -172,11 +172,11 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 
 template <class Graph>
 auto DendrogramParUF(Graph& GA, uintE num_async_rounds = 100, bool debug = false) {
-  if (GA.n >= std::numeric_limits<int32_t>::max()) {
-    return DendrogramParUF_impl<size_t>(GA, num_async_rounds, debug);
-  } else {
-    return DendrogramParUF_impl<uint32_t>(GA, num_async_rounds, debug);
-  }
+	if (GA.n >= std::numeric_limits<int32_t>::max()) {
+		return DendrogramParUF_impl<size_t>(GA, num_async_rounds, debug);
+	} else {
+		return DendrogramParUF_impl<uint32_t>(GA, num_async_rounds, debug);
+	}
 }
 
 }  // namespace gbbs
