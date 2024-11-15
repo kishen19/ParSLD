@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class Graph>
-auto build_rctree_crosslink(Graph& GA) {
+auto build_rctree_crosslink(Graph& GA, bool debug=false) {
   using W = typename Graph::weight_type;
 
   timer t;
@@ -35,7 +35,7 @@ auto build_rctree_crosslink(Graph& GA) {
 
   // Sort the triples, then drop the first endpoint (project to pairs).
   // parlay::sort_inplace(triples);
-  t.next("Sort edges");
+  if (debug) {t.next("Sort edges");}
 
   auto get_key = [](uintE x, uintE y) {
     return std::make_pair(std::min(x, y), std::max(x, y));
@@ -65,7 +65,7 @@ auto build_rctree_crosslink(Graph& GA) {
        neighbors[ind1] = {v, ind2-offsets[v], i, wgh};
        neighbors[ind2] = {u, ind1-offsets[u], i, wgh};
   });
-  t.next("Initialize Neighbors 4-tuples");
+  if (debug) {t.next("Initialize Neighbors 4-tuples");}
 
   // Step 1: Compute RC Tree
   auto rctree = parlay::sequence<RCtree_node<W>>::uninitialized(n);
@@ -90,7 +90,7 @@ auto build_rctree_crosslink(Graph& GA) {
 //     n, [&](uintE i) { return parlay::hash32_3(i); });
 //  uintE rem = m, round = 0;
 
-  t.next("Preprocess (initialize RCTree Nodes and Priorities");
+  if (debug) {t.next("Preprocess (initialize RCTree Nodes and Priorities");}
 
   // Implements the rake operation.
   // If deg 1 cluster merges into a deg>1 cluster:
@@ -224,7 +224,7 @@ auto build_rctree_crosslink(Graph& GA) {
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
   auto degree_two =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 2; });
-  t.next("Before While loop (filters)");
+  if (debug) {t.next("Before While loop (filters)");}
   while (degree_one.size() > 0) {
     timer rt;
     rt.start();
@@ -237,9 +237,10 @@ auto build_rctree_crosslink(Graph& GA) {
     // (a) emit the id of the neighbor / peeled (degree1) vertex
     // (b) histogram the ids (do this using semisort / sort)
     // (c) update the degrees, and filter out those that become degree 1 / 2
-
-    std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
-    std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
+    if (debug) {
+      std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
+      std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
+    }
 
     // Compress
     if (degree_two.size() > 0) {
@@ -251,14 +252,14 @@ auto build_rctree_crosslink(Graph& GA) {
                   [&](uintE i) { finish_compress(degree_two[i]); });
     }
     round++;
-    rt.next("Compress time");
+    if (debug) {rt.next("Compress time");}
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
       auto outp = rake_f(degree_one[i]);
       degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
-    rt.next("Rake time");
+    if (debug) {rt.next("Rake time");}
 
     parlay::sort_inplace(parlay::make_slice(degree_one));
     auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](uintE i) {
@@ -291,11 +292,13 @@ auto build_rctree_crosslink(Graph& GA) {
     auto combined_degree_two = parlay::append(rem_degree_two, new_degree_two);
     degree_two = std::move(combined_degree_two);
     round++;
-    rt.next("Prepare next round time");
+    if (debug) {rt.next("Prepare next round time");}
     // std::cout << rem << std::endl;
   }
-  std::cout << "# Rounds = " << round << std::endl;
-  t.next("RC Tree Time");
+  if (debug) {
+    std::cout << "# Rounds = " << round << std::endl;
+    t.next("RC Tree Time");
+  }
 
   return rctree;
 }

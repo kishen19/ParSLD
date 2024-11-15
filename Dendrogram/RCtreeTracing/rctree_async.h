@@ -32,7 +32,7 @@ auto build_rctree_async(Graph& GA) {
     GA.get_vertex(u).out_neighbors().map_with_index(offset_f);
   });
   parlay::sort_inplace(edges);
-  t.next("Sort edges");
+  if (debug) {t.next("Sort edges");}
 
   using edge_info = std::tuple<uintE, uintE, uintE, W>;
   // Neighbors of vertex i at offsets[i] -- offsets[i+1]:
@@ -56,7 +56,7 @@ auto build_rctree_async(Graph& GA) {
        neighbors[ind1] = {v, ind2-offsets[v], i, wgh};
        neighbors[ind2] = {u, ind1-offsets[u], i, wgh};
   });
-  t.next("Initialize Neighbors 4-tuples");
+  if (debug) {t.next("Initialize Neighbors 4-tuples");}
 
   edges.clear();
 
@@ -75,7 +75,7 @@ auto build_rctree_async(Graph& GA) {
   auto priorities = sequence<uint64_t>::from_function(
      n, [&](size_t i) { return r.ith_rand(i); });
 
-  t.next("Preprocess (initialize RCTree Nodes and Priorities");
+  if (debug) {t.next("Preprocess (initialize RCTree Nodes and Priorities");}
 
   // TODO: Need to make parallel for high degree nodes
   auto get_neighbor = [&](uintE src) -> edge_info {
@@ -222,7 +222,7 @@ auto build_rctree_async(Graph& GA) {
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 1; });
   auto degree_two =
      parlay::filter(delayed_n, [&](uintE i) { return deg[i] == 2; });
-  t.next("Before While loop (filters)");
+  if (debug) {t.next("Before While loop (filters)");}
   size_t round = 0;
   while (degree_one.size() > 0) {
     // timer rt;
@@ -232,8 +232,10 @@ auto build_rctree_async(Graph& GA) {
     // (a) emit the id of the neighbor / peeled (degree1) vertex
     // (b) histogram the ids (do this using semisort / sort)
     // (c) update the degrees, and filter out those that become degree 1 / 2
-    std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
-    std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
+    if (debug) {
+      std::cout << "Degree_one.size = " << degree_one.size() << std::endl;
+      std::cout << "Degree_two.size = " << degree_two.size() << std::endl;
+    }
 
     timer rt; rt.start();
    // Compress
@@ -247,14 +249,14 @@ auto build_rctree_async(Graph& GA) {
      parallel_for(0, degree_two.size(),
                  [&](uintE i) { finish_compress(degree_two[i]); });
    }
-   rt.next("Compress time");
+   if (debug) {rt.next("Compress time");}
 
     // Rake
     parallel_for(0, degree_one.size(), [&](uintE i) {
       auto outp = rake_f(degree_one[i]);
       degree_one[i] = outp ? rctree[degree_one[i]].parent : n;
     });
-    rt.next("Rake time");
+    if (debug) {rt.next("Rake time");}
 
     parlay::sort_inplace(parlay::make_slice(degree_one));
     auto flags = parlay::delayed_seq<bool>(degree_one.size(), [&](uintE i) {
@@ -289,8 +291,10 @@ auto build_rctree_async(Graph& GA) {
     // rt.next("Prepare next round time");
     // std::cout << rem << std::endl;
   }
-  std::cout << "# R/C Rounds = " << round << std::endl;
-  t.next("RC Tree Time");
+  if (debug) {
+    std::cout << "# R/C Rounds = " << round << std::endl;
+    t.next("RC Tree Time");
+  }
 
   return std::make_tuple(std::move(rctree), std::move(offsets), std::move(neighbors));
 }
