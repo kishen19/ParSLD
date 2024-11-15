@@ -79,7 +79,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 			gbbs::write_add(&is_ready[min_elem.second], 1);
 		}
 	});
-	t.next("Preprocessing");
+	if (debug) {t.next("Preprocessing");}
 
 	//Step 4: Apply Union-Find in (sync) rounds, processing local minima edges in each round
 	auto uf = union_find(n);
@@ -137,7 +137,7 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 		// std::cout << "num = " << num  << std::endl;
 		num_iters++;
 	}
-	t.next("Dendrogram Stage 1 Time");
+	if (debug) {t.next("Dendrogram Stage 1 Time");}
 	if (num > 0){
 		auto rem_edges = parlay::filter(parlay::iota<uintE>(m),
 			[&](uintE i){ return is_ready[i] < 3; });
@@ -153,12 +153,14 @@ auto DendrogramParUF_impl(Graph& GA, uintE num_async_rounds = 100, bool debug = 
 			// heights[temp] = num_iters + i + 1; //std::max(heights[temp], heights[i]+1);
 			parent[ind] = temp;
 		});
-		t.next("Dendrogram Stage 2 Time");
+		if (debug){t.next("Dendrogram Stage 2 Time");}
 	}
 
-	std::cout << "Remaining Edges = " << num << std::endl;
-	std::cout << "Num Iters = " << num_iters << std::endl;
-  	std::cout << "Height = " << (num_iters + num) << std::endl;
+	if (debug){
+		std::cout << "Remaining Edges = " << num << std::endl;
+		std::cout << "Num Iters = " << num_iters << std::endl;
+		std::cout << "Height = " << (num_iters + num) << std::endl;
+	}
 
 	if (debug){
 		// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;

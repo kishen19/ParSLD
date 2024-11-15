@@ -24,7 +24,7 @@ auto DendrogramRCtreeTracing_impl(Graph& GA, bool debug = false) {
   //auto rctree = build_rctree_ht(GA);
   // auto rctree = build_rctree_crosslink(GA);
   auto [rctree, offsets, neighbors] = build_rctree_async<IdType>(GA);
-  t.next("BuildRCTree");
+  if (debug) {t.next("BuildRCTree");}
 
   if (debug) {
     for (uintE i=0; i<n; i++){
@@ -51,7 +51,7 @@ auto DendrogramRCtreeTracing_impl(Graph& GA, bool debug = false) {
       bkt_ids[edge_index] = {rctree[par].edge_index, wgh};
     }
   });
-  t.next("Tracing");
+  if (debug) {t.next("Tracing");}
 
   // Step 3: Sort by bkt_ids
   auto parent = sequence<uintE>::from_function(m, [&](size_t i) { return i; });
@@ -69,7 +69,7 @@ auto DendrogramRCtreeTracing_impl(Graph& GA, bool debug = false) {
       }
     }
   });
-  t.next("Sort");
+  if (debug) {t.next("Sort");}
 
   if (debug) {
     for (size_t i=0; i<m; i++){

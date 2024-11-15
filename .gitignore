@@ -14,6 +14,7 @@ cplib.sh
 gbbs.pyc
 
 /bazel-*
+*.bazel*
 .pytype
 .ycm_extra_conf.py
 __pycache__

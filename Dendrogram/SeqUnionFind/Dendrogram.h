@@ -45,7 +45,7 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
       exit(-1);
     }
   }
-	t.next("Preprocess Time");
+	if (debug) {t.next("Preprocess Time");}
 
 	// Step 2: Sorting the edges by (weight, index)
 	auto proc_edges = sequence<std::pair<W,uintE>>::from_function(m, [&](size_t i){
@@ -55,7 +55,7 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
 //    std::cout << std::get<0>(edges[2*i]) << " " << std::get<1>(edges[2*i]) << " " << std::get<2>(edges[2*i]) << " i = " << i << std::endl;
 //  }
 	parlay::sort_inplace(proc_edges);
-	t.next("Sorting Edges Time");
+	if (debug) {t.next("Sorting Edges Time");}
 
 	// Step 3: Applying Union Find to the sorted sequence of edges
 	auto uf = union_find(n);
@@ -63,7 +63,7 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
 	auto aux = sequence<uintE>(n, n); // extra info required for assigning parents
 	// auto heights = sequence<uintE>(m,0); // Heights of every node in the dendrogram
 
-  	size_t total_work = 0;
+  size_t total_work = 0;
 
 	for(size_t ind = 0; ind < m; ind++) {
 		size_t i = std::get<1>(proc_edges[ind]);
@@ -86,17 +86,12 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
 		aux[w] = i;
 		// heights[i] = height;
 	}
-	t.next("Dendrogram Time");
-	std::cout << "Total dendrogram work: " << total_work << std::endl;
-
-	if (debug){
-		for (size_t i=0; i<m; i++){
-		    std::cout << parent[i] << " ";
-		}
-		std::cout << std::endl;
+	if (debug) {
+		t.next("Dendrogram Time");
+		std::cout << "Total dendrogram work: " << total_work << std::endl;
+		// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
 	}
-	// std::cout << std::endl << "=> Dendrogram Height = " << parlay::reduce_max(heights) << std::endl;
-  	return parent;
+  return parent;
 }
 
 template <class Graph>
