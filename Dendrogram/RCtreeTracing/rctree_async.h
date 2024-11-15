@@ -9,7 +9,7 @@
 namespace gbbs {
 
 template <class IdType, class Graph>
-auto build_rctree_async(Graph& GA) {
+auto build_rctree_async(Graph& GA, bool debug=false) {
   using W = typename Graph::weight_type;
 
   timer t;
