@@ -32,7 +32,7 @@ auto DendrogramSeqUF_impl(Graph& GA, bool debug = false) {
 	// Step 2: Applying Union Find to the sorted sequence of edges
 	auto uf = union_find(n);
 	auto dendrogram = sequence<std::pair<uintE,W>>::from_function(n+m, [&](uintE i){ 
-		return std::make_pair(UINT_E_MAX, 0); });
+		return std::make_pair(std::numeric_limits<uintE>::max(), 0); });
 	auto aux = sequence<uintE>(n, m); // extra info required for assigning parents
 	// auto heights = sequence<uintE>(m,0); // Heights of every node in the dendrogram
 	for(size_t i = 0; i < m; i++) {
